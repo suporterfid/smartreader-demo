@@ -1,0 +1,16 @@
+<!-- app/templates/app/mode_form.html -->
+
+{% extends 'app/base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Mode Command" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>{% trans "Send Mode Command to" %} {{ reader.serial_number }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">{% trans "Send" %}</button>
+        <a href="{% url 'reader_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
+    </form>
+</div>
+{% endblock %}

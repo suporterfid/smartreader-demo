@@ -1,0 +1,55 @@
+<!-- app/templates/app/detailed_status_event_list.html -->
+
+{% extends 'app/base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Detailed Status Events" %}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">{% trans "Detailed Status Events" %}</h1>
+    <form method="get" class="form-inline mb-3">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="{% trans 'Search' %}" class="form-control mr-2">
+        <button type="submit" class="btn btn-primary">{% trans 'Search' %}</button>
+    </form>
+    <table class="table table-bordered">
+        <thead class="thead-light">
+            <tr>
+                <th><a href="?sort=reader__serial_number">{% trans "Reader Serial Number" %}</a></th>
+                <th><a href="?sort=event_type">{% trans "Event Type" %}</a></th>
+                <th><a href="?sort=component">{% trans "Component" %}</a></th>
+                <th><a href="?sort=timestamp">{% trans "Timestamp" %}</a></th>
+                <th><a href="?sort=status">{% trans "Status" %}</a></th>
+                <th>{% trans "Details" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in page_obj %}
+            <tr>
+                <td>{{ event.reader.serial_number }}</td>
+                <td>{{ event.event_type }}</td>
+                <td>{{ event.component }}</td>
+                <td>{{ event.timestamp }}</td>
+                <td>{{ event.status }}</td>
+                <td><a href="{% url 'detailed_status_event_detail' event.id %}">{% trans "View Details" %}</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ search_query }}&sort={{ sort_by }}">{% trans 'Previous' %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ search_query }}&sort={{ sort_by }}">{% trans 'Next' %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endblock %}

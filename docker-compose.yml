@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src/:/app/
+    depends_on:
+      - mqtt
+
+  mqtt:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"

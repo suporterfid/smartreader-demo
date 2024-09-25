@@ -1,0 +1,58 @@
+<!-- app/templates/app/tag_event_list.html -->
+
+{% extends 'app/base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Tag Events" %}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">{% trans "Tag Events" %}</h1>
+    <form method="get" class="form-inline mb-3">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="{% trans 'Search' %}" class="form-control mr-2">
+        <button type="submit" class="btn btn-primary">{% trans 'Search' %}</button>
+        <button type="submit" name="export" value="csv" class="btn btn-secondary ml-2">{% trans 'Export to CSV' %}</button>
+    </form>
+    <table class="table table-bordered">
+        <thead class="thead-light">
+            <tr>
+                <th><a href="?sort=epc">{% trans "EPC" %}</a></th>
+                <th><a href="?sort=reader__serial_number">{% trans "Reader Serial Number" %}</a></th>
+                <th><a href="?sort=first_seen_timestamp">{% trans "First Seen Timestamp" %}</a></th>
+                <th><a href="?sort=antenna_port">{% trans "Antenna Port" %}</a></th>
+                <th><a href="?sort=antenna_zone">{% trans "Antenna Zone" %}</a></th>
+                <th><a href="?sort=peak_rssi">{% trans "Peak RSSI" %}</a></th>
+                <!-- Add other columns as needed -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in page_obj %}
+            <tr>
+                <td>{{ event.epc }}</td>
+                <td>{{ event.reader.serial_number }}</td>
+                <td>{{ event.first_seen_timestamp }}</td>
+                <td>{{ event.antenna_port }}</td>
+                <td>{{ event.antenna_zone }}</td>
+                <td>{{ event.peak_rssi }}</td>
+                <!-- Add other columns as needed -->
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ search_query }}&sort={{ sort_by }}">{% trans 'Previous' %}</a>
+            </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">{% trans 'Page' %} {{ page_obj.number }} {% trans 'of' %} {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ search_query }}&sort={{ sort_by }}">{% trans 'Next' %}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endblock %}
