@@ -181,7 +181,7 @@ For more information on how the SmartReader application works, refer to the [sma
 
 ## Contributing
 
-Contributions to the DPP project are welcome. Please ensure you follow the coding standards and write tests for new features.
+Contributions to the project are welcome. Please ensure you follow the coding standards and write tests for new features.
 
 ## WARRANTY DISCLAIMER
 
