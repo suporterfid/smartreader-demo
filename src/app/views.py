@@ -1,37 +1,25 @@
-import logging
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render, redirect
-from .models import DetailedStatusEvent, Reader, TagEvent
-from django.core.paginator import Paginator
-from django.db.models import Q
-from .forms import ReaderForm, ModeForm
-from django.utils.translation import gettext as _
-import uuid
-from .mqtt_client import client
-import paho.mqtt.client as mqtt
+# views.py
 import json
+from django.contrib.auth.decorators import login_required
+from django.utils.translation import gettext as _
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.urls import reverse
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Add handler if not already configured
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+from app.models import DetailedStatusEvent, Reader
+from .services import (
+    get_tag_events, get_paginated_items, get_readers, send_command,
+    handle_mode_command, get_detailed_status_events, send_command_service
+)
+from .forms import ReaderForm, ModeForm
 
 @login_required
 def tag_event_list(request):
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', '-first_seen_timestamp')
     export = request.GET.get('export', '')
-    tag_events = TagEvent.objects.filter(
-        Q(epc__icontains=search_query) |
-        Q(reader__serial_number__icontains=search_query) |
-        Q(reader_name__icontains=search_query)
-    ).order_by(sort_by)
+    tag_events = get_tag_events(search_query, sort_by)
+
     if export == 'csv':
         import csv
         from django.http import HttpResponse
@@ -49,9 +37,8 @@ def tag_event_list(request):
                 event.peak_rssi,
             ])
         return response
-    paginator = Paginator(tag_events, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+
+    page_obj = get_paginated_items(tag_events, request.GET.get('page'))
     return render(request, 'app/tag_event_list.html', {
         'page_obj': page_obj,
         'search_query': search_query,
@@ -62,14 +49,8 @@ def tag_event_list(request):
 def reader_list(request):
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', 'serial_number')
-    readers = Reader.objects.filter(
-        Q(serial_number__icontains=search_query) |
-        Q(ip_address__icontains=search_query) |
-        Q(location__icontains=search_query)
-    ).order_by(sort_by)
-    paginator = Paginator(readers, 10)  # Show 10 readers per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    readers = get_readers(search_query, sort_by)
+    page_obj = get_paginated_items(readers, request.GET.get('page'))
     return render(request, 'app/reader_list.html', {
         'page_obj': page_obj,
         'search_query': search_query,
@@ -87,87 +68,68 @@ def reader_create(request):
         form = ReaderForm()
     return render(request, 'app/reader_form.html', {'form': form})
 
-def send_command(reader, command_type, payload={}):
-    logger.info(f"Preparing to send command '{command_type}' to reader '{reader.serial_number}'")
-    if command_type == 'mode' and not payload:
-        logger.error("Mode command requires a payload but none was provided")
-        return
-    if command_type == 'status-detailed':
-        topic = f'smartreader/{reader.serial_number}/manage'
+@login_required
+def reader_edit(request, pk):
+    reader = get_object_or_404(Reader, pk=pk)
+    if request.method == 'POST':
+        form = ReaderForm(request.POST, instance=reader)
+        if form.is_valid():
+            form.save()
+            return redirect('reader_list')
     else:
-        topic = f'smartreader/{reader.serial_number}/control'
-    command_id = str(uuid.uuid4())
-    message = {
-        'command': command_type,
-        'command_id': command_id,
-        'payload': payload
-    }
-    message_json = json.dumps(message)
-    logger.info(f"Publishing message to topic '{topic}': {message_json}")
-    # Ensure the client is connected
-    if not client.is_connected():
-        logger.error("MQTT client is not connected. Attempting to reconnect...")
+        form = ReaderForm(instance=reader)
+    return render(request, 'app/reader_form.html', {'form': form})
+
+def send_command(request, reader_id):
+    if request is None or not hasattr(request, 'user') or not request.user.is_authenticated:
+        return redirect(f"{reverse('login')}?next={request.path}")
+
+    command_type = request.POST.get('command_type')
+
+    if not command_type:
+        messages.error(request, _("No command type selected."))
+        return redirect('reader_list')
+
+    # Get the payload from the POST data
+    payload = request.POST.get('payload')
+    parsed_payload = {}
+
+    if payload:
         try:
-            client.reconnect()
-            logger.info("Reconnected to MQTT broker")
-        except Exception as e:
-            logger.exception(f"Failed to reconnect to MQTT broker: {e}")
-            return
-    try:
-        result, mid = client.publish(topic, message_json)
-        if result == mqtt.MQTT_ERR_SUCCESS:
-            logger.info(f"Message published successfully with message ID: {mid}")
-        else:
-            logger.error(f"Failed to publish message. Error code: {result}")
-    except Exception as e:
-        logger.exception(f"An exception occurred while publishing the message: {e}")
+            parsed_payload = json.loads(payload)
+        except json.JSONDecodeError:
+            messages.error(request, _("Invalid JSON payload provided."))
+            return redirect('reader_list')
 
+    # Use the service to send the command
+    success, message = send_command_service(request, reader_id, command_type, parsed_payload)
+    
+    if success:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
 
+    return redirect('reader_list')
+
+@login_required
 def send_command_to_readers(request):
     if request.method == 'POST':
         reader_ids = request.POST.getlist('reader_ids')
         command_type = request.POST.get('command')
         readers = Reader.objects.filter(id__in=reader_ids)
-        if command_type == 'mode':
-            if len(readers) == 1:
-                return redirect('mode_command', reader_id=readers[0].id)
-            else:
-                # Optional: Handle multiple readers for mode command
-                pass
-        else:
-            for reader in readers:
-                send_command(reader, command_type)
+
+        for reader in readers:
+            send_command(reader, command_type)
+        
         return redirect('reader_list')
-    
+
 @login_required
 def mode_command(request, reader_id):
     reader = get_object_or_404(Reader, id=reader_id)
     if request.method == 'POST':
         form = ModeForm(request.POST)
         if form.is_valid():
-            data = form.cleaned_data
-            payload = {
-                'type': data['type'],
-                'antennas': data['antennas'],
-                'antennaZone': data['antennaZone'],
-                'antennaZoneState': data['antennaZoneState'],
-                'transmitPower': data['transmitPower'],
-                'groupIntervalInMs': data['groupIntervalInMs'],
-                'rfMode': data['rfMode'],
-                'searchMode': data['searchMode'],
-                'session': data['session'],
-                'tagPopulation': data['tagPopulation'],
-                'filter': {
-                    'value': data.get('filter_value', ''),
-                    'match': data.get('filter_match', ''),
-                    'operation': data.get('filter_operation', ''),
-                    'status': data.get('filter_status', '')
-                },
-                'rssiFilter': {
-                    'threshold': data.get('rssi_threshold', '')
-                }
-            }
-            send_command(reader, 'mode', payload)
+            handle_mode_command(reader, form.cleaned_data)
             return redirect('reader_list')
     else:
         form = ModeForm()
@@ -177,15 +139,8 @@ def mode_command(request, reader_id):
 def detailed_status_event_list(request):
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', '-timestamp')
-    events = DetailedStatusEvent.objects.filter(
-        Q(reader__serial_number__icontains=search_query) |
-        Q(event_type__icontains=search_query) |
-        Q(component__icontains=search_query) |
-        Q(status__icontains=search_query)
-    ).order_by(sort_by)
-    paginator = Paginator(events, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    events = get_detailed_status_events(search_query, sort_by)
+    page_obj = get_paginated_items(events, request.GET.get('page'))
     return render(request, 'app/detailed_status_event_list.html', {
         'page_obj': page_obj,
         'search_query': search_query,
@@ -200,6 +155,3 @@ def detailed_status_event_detail(request, event_id):
         'event': event,
         'filter_query': filter_query
     })
-
-def home(request):
-    return redirect('reader_list')

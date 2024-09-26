@@ -36,6 +36,12 @@
         #sidebarCollapse {
             margin-left: 20px;
         }
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
     </style>
 </head>
 <body>
@@ -45,7 +51,6 @@
         <div class="sidebar-header text-center mt-3">
             <h4>Menu</h4>
         </div>
-        
         <ul class="list-group list-group-flush">
             <a href="{% url 'reader_list' %}" class="list-group-item list-group-item-action">
                 <i class="fas fa-barcode"></i> {% trans "Readers" %}
@@ -58,9 +63,9 @@
             </a>
             <!-- Add more menu items as needed -->
         </ul>
-        
     </nav>
     {% endif %}
+
     <!-- Content -->
     <div id="content">
         <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -76,6 +81,25 @@
                 {% endif %}
             </div>
         </nav>
+
+        <!-- Status Messages -->
+        <div class="container mt-3">
+            {% if messages %}
+                <div class="row">
+                    <div class="col-12">
+                        {% for message in messages %}
+                            <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="{% trans 'Close' %}">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
         {% block content %}{% endblock %}
     </div>
 
@@ -89,6 +113,10 @@
         $('#sidebarCollapse').on('click', function () {
             $('#sidebar').toggleClass('collapsed');
         });
+
+        setTimeout(function() {
+            $('.alert').alert('close');
+        }, 5000); // Close alert after 5 seconds
     </script>
 </body>
 </html>

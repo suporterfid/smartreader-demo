@@ -5,48 +5,57 @@
 {% block title %}{% trans "Reader List" %}{% endblock %}
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">{% trans "Readers" %}</h1>
+    <h1 class="mb-4 d-flex justify-content-between align-items-center">
+        {% trans "Readers" %}
+        <a href="{% url 'reader_create' %}" class="btn btn-success">{% trans "Add Reader" %}</a>
+    </h1>
     <form method="get" class="form-inline mb-3">
         <input type="text" name="search" value="{{ search_query }}" placeholder="{% trans 'Search' %}" class="form-control mr-2">
         <button type="submit" class="btn btn-primary">{% trans 'Search' %}</button>
     </form>
-    <form method="post" action="{% url 'send_command_to_readers' %}">
-        {% csrf_token %}
-        <table class="table table-bordered">
-            <thead class="thead-light">
-                <tr>
-                    <th><input type="checkbox" id="select_all"></th>
-                    <th><a href="?sort=serial_number">{% trans "Serial Number" %}</a></th>
-                    <th><a href="?sort=ip_address">{% trans "IP Address" %}</a></th>
-                    <th><a href="?sort=location">{% trans "Location" %}</a></th>
-                    <th><a href="?sort=last_communication">{% trans "Last Communication" %}</a></th>
-                    <th><a href="?sort=enabled">{% trans "Enabled" %}</a></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for reader in page_obj %}
-                <tr>
-                    <td><input type="checkbox" name="reader_ids" value="{{ reader.id }}"></td>
-                    <td>{{ reader.serial_number }}</td>
-                    <td>{{ reader.ip_address }}</td>
-                    <td>{{ reader.location }}</td>
-                    <td>{{ reader.last_communication }}</td>
-                    <td>{{ reader.enabled }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <div class="mb-3">
-            <label for="command">{% trans 'Command' %}</label>
-            <select name="command" id="command" class="form-control">
-                <option value="start">{% trans 'Start' %}</option>
-                <option value="stop">{% trans 'Stop' %}</option>
-                <option value="status-detailed">{% trans 'Status Detailed' %}</option>
-                <option value="mode">{% trans 'Mode' %}</option>
-            </select>
-            <button type="submit" class="btn btn-success mt-2">{% trans 'Send Command' %}</button>
-        </div>
-    </form>
+
+    <table class="table table-bordered">
+        <thead class="thead-light">
+            <tr>
+                <th><a href="?sort=serial_number">{% trans "Serial Number" %}</a></th>
+                <th><a href="?sort=ip_address">{% trans "IP Address" %}</a></th>
+                <th><a href="?sort=location">{% trans "Location" %}</a></th>
+                <th><a href="?sort=last_communication">{% trans "Last Communication" %}</a></th>
+                <th><a href="?sort=enabled">{% trans "Enabled" %}</a></th>
+                <th>{% trans "Actions" %}</th>
+                <th>{% trans "Send Command" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reader in page_obj %}
+            <tr>
+                <td>{{ reader.serial_number }}</td>
+                <td>{{ reader.ip_address }}</td>
+                <td>{{ reader.location }}</td>
+                <td>{{ reader.last_communication }}</td>
+                <td>{{ reader.enabled }}</td>
+                <td>
+                    <a href="{% url 'reader_edit' reader.id %}" class="btn btn-warning btn-sm">{% trans "Edit" %}</a>
+                </td>
+                <td>
+                    <form method="post" action="{% url 'send_command' reader.id %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <select name="command_type" class="form-control">
+                                <option value="start">{% trans 'Start' %}</option>
+                                <option value="stop">{% trans 'Stop' %}</option>
+                                <option value="status-detailed">{% trans 'Status Detailed' %}</option>
+                                <option value="mode">{% trans 'Mode' %}</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm">{% trans "Send" %}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
     <nav>
         <ul class="pagination">
             {% if page_obj.has_previous %}
@@ -65,12 +74,4 @@
         </ul>
     </nav>
 </div>
-<script>
-    document.getElementById('select_all').addEventListener('change', function(){
-        var checkboxes = document.querySelectorAll('input[name="reader_ids"]');
-        for (var checkbox of checkboxes) {
-            checkbox.checked = this.checked;
-        }
-    });
-</script>
 {% endblock %}

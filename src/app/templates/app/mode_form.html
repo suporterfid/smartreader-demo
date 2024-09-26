@@ -2,13 +2,73 @@
 
 {% extends 'app/base.html' %}
 {% load i18n %}
+{% load form_filters %}
 {% block title %}{% trans "Mode Command" %}{% endblock %}
 {% block content %}
 <div class="container mt-4">
     <h1>{% trans "Send Mode Command to" %} {{ reader.serial_number }}</h1>
-    <form method="post">
+    <form method="post" class="mt-3">
         {% csrf_token %}
-        {{ form.as_p }}
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.type.label_tag }}
+                {{ form.type|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.antennas.label_tag }}
+                {{ form.antennas }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.antennaZone.label_tag }}
+                {{ form.antennaZone|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.antennaZoneState.label_tag }}
+                {{ form.antennaZoneState|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.transmitPower.label_tag }}
+                {{ form.transmitPower|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.groupIntervalInMs.label_tag }}
+                {{ form.groupIntervalInMs|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.rfMode.label_tag }}
+                {{ form.rfMode|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.searchMode.label_tag }}
+                {{ form.searchMode|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.session.label_tag }}
+                {{ form.session|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.tagPopulation.label_tag }}
+                {{ form.tagPopulation|add_class:"form-control" }}
+            </div>
+        </div>
         <button type="submit" class="btn btn-primary">{% trans "Send" %}</button>
         <a href="{% url 'reader_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
     </form>

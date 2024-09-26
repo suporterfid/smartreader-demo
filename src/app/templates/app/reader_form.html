@@ -1,16 +1,40 @@
+<!-- app/templates/app/reader_form.html -->
+
+{% extends 'app/base.html' %}
 {% load i18n %}
-<!DOCTYPE html>
-<html lang="{{ LANGUAGE_CODE }}">
-<head>
-    <meta charset="UTF-8">
-    <title>{% trans "Add Reader" %}</title>
-</head>
-<body>
-    <h1>{% trans "Add Reader" %}</h1>
-    <form method="post">
+{% load form_filters %}
+{% block title %}{% trans "Reader Form" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>{% if form.instance.pk %}{% trans "Edit Reader" %}{% else %}{% trans "Add Reader" %}{% endif %}</h1>
+    <form method="post" class="mt-3">
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">{% trans "Save" %}</button>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.serial_number.label_tag }}
+                {{ form.serial_number|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.ip_address.label_tag }}
+                {{ form.ip_address|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.location.label_tag }}
+                {{ form.location|add_class:"form-control" }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.enabled.label_tag }}<br>
+                {{ form.enabled|add_class:"form-check-input" }}
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+        <a href="{% url 'reader_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
     </form>
-</body>
-</html>
+</div>
+{% endblock %}
