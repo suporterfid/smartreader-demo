@@ -33,6 +33,17 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 ALLOWED_HOSTS = ['localhsot','127.0.0.1','smartreader-demo.fly.dev', '66.241.124.48']
 
+# Redirect all HTTP traffic to HTTPS
+# UNCOMMENT FOR PRODUCTION DEPLOYMENT
+# SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', False)
+
+# Optionally: HSTS settings
+# SECURE_HSTS_SECONDS = 31536000  # Enable HTTP Strict Transport Security (HSTS)
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
+
+
 # Application definition
 
 INSTALLED_APPS = [

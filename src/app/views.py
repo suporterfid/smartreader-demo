@@ -87,7 +87,6 @@ def reader_create(request):
         form = ReaderForm()
     return render(request, 'app/reader_form.html', {'form': form})
 
-@login_required
 def send_command(reader, command_type, payload={}):
     logger.info(f"Preparing to send command '{command_type}' to reader '{reader.serial_number}'")
     if command_type == 'mode' and not payload:
@@ -123,7 +122,7 @@ def send_command(reader, command_type, payload={}):
     except Exception as e:
         logger.exception(f"An exception occurred while publishing the message: {e}")
 
-@login_required
+
 def send_command_to_readers(request):
     if request.method == 'POST':
         reader_ids = request.POST.getlist('reader_ids')
