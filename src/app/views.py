@@ -5,6 +5,7 @@ from django.utils.translation import gettext as _
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.urls import reverse
+from .mqtt_client import client
 
 from app.models import DetailedStatusEvent, Reader
 from .services import (
@@ -102,7 +103,7 @@ def send_command(request, reader_id):
             return redirect('reader_list')
 
     # Use the service to send the command
-    success, message = send_command_service(request, reader_id, command_type, parsed_payload)
+    success, message = send_command_service(request, reader_id, command_type, client, parsed_payload)
     
     if success:
         messages.success(request, message)
@@ -119,7 +120,7 @@ def send_command_to_readers(request):
         readers = Reader.objects.filter(id__in=reader_ids)
 
         for reader in readers:
-            send_command(reader, command_type)
+            send_command(reader, command_type, client)
         
         return redirect('reader_list')
 
@@ -155,3 +156,6 @@ def detailed_status_event_detail(request, event_id):
         'event': event,
         'filter_query': filter_query
     })
+
+def home(request):
+    return redirect('reader_list')

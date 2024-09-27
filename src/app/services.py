@@ -7,9 +7,11 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.contrib import messages
 from django.utils.translation import gettext as _
-from .models import Reader, TagEvent, DetailedStatusEvent
-from .mqtt_client import client
+from django.utils import timezone
+from datetime import datetime
 import paho.mqtt.client as mqtt
+from .models import Reader, TagEvent, DetailedStatusEvent
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ def get_readers(search_query, sort_by):
         Q(location__icontains=search_query)
     ).order_by(sort_by)
 
-def send_command_service(request, reader_id, command_type, payload=None):
+def send_command_service(request, reader_id, command_type, client, payload=None):
     reader = get_object_or_404(Reader, pk=reader_id)
 
     if not command_type:
@@ -78,7 +80,7 @@ def send_command_service(request, reader_id, command_type, payload=None):
         logger.exception(f"An exception occurred while publishing the message: {e}")
         return False, _("An error occurred: %(error)s") % {'error': str(e)}
     
-def send_command(reader, command_type, payload=None):
+def send_command(reader, command_type, client, payload=None):
     if not command_type:
         logger.error(f"No command type selected for reader {reader.serial_number}")
         return
@@ -154,3 +156,83 @@ def get_detailed_status_events(search_query, sort_by):
         Q(component__icontains=search_query) |
         Q(status__icontains=search_query)
     ).order_by(sort_by)
+
+def update_reader_last_communication(serial_number):
+    try:
+        reader = Reader.objects.get(serial_number=serial_number)
+        reader.last_communication = timezone.now()
+        reader.save(update_fields=['last_communication'])
+        logger.info(f"Updated last_communication for reader {serial_number}")
+        return reader
+    except Reader.DoesNotExist:
+        logger.warning(f"Reader with serial number {serial_number} does not exist")
+        return None
+
+def process_tag_events(reader, tag_reads):
+    for tag_read in tag_reads:
+        epc = tag_read.get('epc', '')
+        first_seen_timestamp = tag_read.get('firstSeenTimestamp', 0)
+
+        # Convert microseconds to seconds and make the datetime object timezone-aware
+        naive_dt = datetime.fromtimestamp(first_seen_timestamp / 1000000)
+        aware_dt = timezone.make_aware(naive_dt, timezone.get_default_timezone())
+
+        TagEvent.objects.create(
+            reader=reader,
+            reader_name=tag_read.get('readerName', ''),
+            mac_address=tag_read.get('mac', ''),
+            epc=epc,
+            first_seen_timestamp=aware_dt,
+            antenna_port=tag_read.get('antennaPort', 0),
+            antenna_zone=tag_read.get('antennaZone', ''),
+            peak_rssi=tag_read.get('peakRssi', 0),
+            tx_power=tag_read.get('txPower', 0),
+            tag_data_key=tag_read.get('tagDataKey', ''),
+            tag_data_key_name=tag_read.get('tagDataKeyName', ''),
+            tag_data_serial=tag_read.get('tagDataSerial', '')
+        )
+        logger.info(f"Stored tag event for EPC {tag_read.get('epc', '')}")
+
+def store_detailed_status_event(reader, payload):
+    from datetime import datetime
+    timestamp_str = payload.get('timestamp', '')
+    try:
+        if isinstance(timestamp_str, int):
+            timestamp = datetime.fromtimestamp(timestamp_str / 1000000)
+        else:
+            timestamp = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        timestamp = timezone.make_aware(timestamp, timezone.utc)
+    except (ValueError, TypeError):
+        timestamp = timezone.now()
+
+    event_type = payload.get('eventType', 'unknown')
+    non_antenna_details = {}
+
+    if event_type == "gpi-status":
+        non_antenna_details = {"gpiConfigurations": payload.get('gpiConfigurations', [])}
+        logger.info(f"Processing GPI status event for reader {reader.serial_number}")
+    elif "smartreader-mqtt-status" in payload:
+        mqtt_status = payload.get("smartreader-mqtt-status", "")
+        non_antenna_details = {"mqtt_status": mqtt_status}
+        event_type = "mqtt-status"
+        logger.info(f"Processing MQTT status event ({mqtt_status}) for reader {reader.serial_number}")
+    elif "status" in payload:
+        status = payload.get("status", "")
+        non_antenna_details = {"status": status}
+        event_type = "status"
+        logger.info(f"Processing status event ({status}) for reader {reader.serial_number}")
+    else:
+        non_antenna_details = {k: v for k, v in payload.items() if 'antenna' not in k.lower()}
+        logger.info(f"Processing generic event for reader {reader.serial_number}")
+
+    DetailedStatusEvent.objects.create(
+        reader=reader,
+        event_type=event_type,
+        component=payload.get('component', 'unknown'),
+        timestamp=timestamp,
+        mac_address=payload.get('macAddress', ''),
+        status=payload.get('status', ''),
+        details=payload,
+        non_antenna_details=non_antenna_details
+    )
+    logger.info(f"Stored detailed status event (type: {event_type}) for reader {reader.serial_number}")

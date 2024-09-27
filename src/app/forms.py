@@ -38,18 +38,39 @@ class ModeForm(forms.Form):
     )
     rfMode = forms.ChoiceField(
         label=_("RF Mode"),
-        choices=[('MaxThroughput', _('Max Throughput'))],
+        choices=[
+            ('MaxThroughput', _('Max Throughput')),
+            ('Hybrid', _('Hybrid')),
+            ('DenseReaderM4', _('DenseReaderM4')),
+            ('DenseReaderM8', _('DenseReaderM8')),
+            ('MaxMiller', _('MaxMiller')),
+            ('AutoSetDenseReaderDeepScan', _('AutoSetDenseReaderDeepScan')),
+            ('AutoSetStaticFast', _('AutoSetStaticFast')),
+            ('AutoSetStaticDRM', _('AutoSetStaticDRM'))
+            ],
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     searchMode = forms.ChoiceField(
         label=_("Search Mode"),
-        choices=[('single-target', _('Single Target'))],
+        choices=[
+            ('reader-selected', _('Reader Selected')),
+            ('single-target', _('Single Target')),
+            ('dual-target', _('Dual Target')),
+            ('single-target-with-tagfocus', _('TagFocus')),
+            ('single-target-b-to-a', _('SingleTargetReset')),
+            ('dual-target-with-b-to-a-select', _('DualTargetBtoASelect'))
+                 ],
         widget=forms.Select(attrs={'class': 'form-control'})
     )
-    session = forms.CharField(
+    session = forms.ChoiceField(
         label=_("Session"),
-        max_length=10,
-        widget=forms.TextInput(attrs={'class': 'form-control'})
+        choices=[
+            ('0', '0'),
+            ('1', '1'),
+            ('2', '2'),
+            ('3', '3')
+                 ],
+        widget=forms.Select(attrs={'class': 'form-control'})
     )
     tagPopulation = forms.IntegerField(
         label=_("Tag Population"),
