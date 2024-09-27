@@ -27,11 +27,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-(f$i52gweksrqad2=)n5qo@we-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-ALLOWED_HOSTS = ['localhsot','127.0.0.1','smartreader-demo.fly.dev', '66.241.124.48']
+ALLOWED_HOSTS = ['localhost','127.0.0.1','smartreader-demo.fly.dev', '66.241.124.48']
 
 # Redirect all HTTP traffic to HTTPS
 # UNCOMMENT FOR PRODUCTION DEPLOYMENT
@@ -42,7 +40,7 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 else:
     SECURE_PROXY_SSL_HEADER = None
-    
+
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
 else:
@@ -109,8 +107,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # }
 
 DATABASES = {
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,
+        ssl_require=os.environ.get('DB_SSL_REQUIRE', 'False') == 'True'
+    )
 }
+
 
 
 # Password validation
@@ -162,8 +165,15 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # MQTT Broker Configuration
-MQTT_BROKER = 'test.mosquitto.org'
-MQTT_PORT = 1883
+MQTT_PORT = os.environ.get('MQTT_PORT', 1883)
+MQTT_BROKER = os.environ.get('MQTT_BROKER', 'test.mosquitto.org')
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'reader_list'

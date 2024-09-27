@@ -9,8 +9,7 @@ from django.contrib import messages
 from django.utils.translation import gettext as _
 from django.utils import timezone
 from datetime import datetime
-import paho.mqtt.client as mqtt
-from .models import Reader, TagEvent, DetailedStatusEvent
+from .models import Command, Reader, TagEvent, DetailedStatusEvent
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,8 @@ def get_readers(search_query, sort_by):
         Q(location__icontains=search_query)
     ).order_by(sort_by)
 
-def send_command_service(request, reader_id, command_type, client, payload=None):
+def send_command_service(request, reader_id, command_type, payload=None):
+    from .mqtt_client import get_task_mqtt_client
     reader = get_object_or_404(Reader, pk=reader_id)
 
     if not command_type:
@@ -55,8 +55,10 @@ def send_command_service(request, reader_id, command_type, client, payload=None)
     else:
         topic = f'smartreader/{reader.serial_number}/control'
 
-    logger.info(f"Sending command '{command_type}' to reader '{reader.serial_number}' with payload: {payload}")
+    logger.info(f"Sending command '{command_id}' - '{command_type}' to reader '{reader.serial_number}' on topic '{topic}' message: {message}")
     message_json = json.dumps(message)
+
+    client = get_task_mqtt_client()
 
     if not client.is_connected():
         logger.error("MQTT client is not connected. Attempting to reconnect...")
@@ -65,22 +67,18 @@ def send_command_service(request, reader_id, command_type, client, payload=None)
             logger.info("Reconnected to MQTT broker")
         except Exception as e:
             logger.exception(f"Failed to reconnect to MQTT broker: {e}")
-            return False, _("Failed to reconnect to MQTT broker.")
+            return False, _("Failed to send command. Please try again.")
 
     try:
-        result, mid = client.publish(topic, message_json)
-        if result == mqtt.MQTT_ERR_SUCCESS:
-            logger.info(f"Message published successfully with message ID: {mid}")
-            return True, _("Command '%(command)s' sent to reader '%(serial)s' successfully.") % {
-                'command': command_type, 'serial': reader.serial_number}
-        else:
-            logger.error(f"Failed to publish message. Error code: {result}")
-            return False, _("Failed to publish message. Error code: %(result)s.") % {'result': str(result)}
+        result = client.publish(topic, message_json)
+        logger.info(f"Message queued successfully.")
+        return True, _("Command queued successfully.")
     except Exception as e:
         logger.exception(f"An exception occurred while publishing the message: {e}")
-        return False, _("An error occurred: %(error)s") % {'error': str(e)}
+        return False, _("Failed to send command. Please try again.")
     
-def send_command(reader, command_type, client, payload=None):
+def send_command(reader, command_type, payload=None):
+    from .mqtt_client import get_task_mqtt_client
     if not command_type:
         logger.error(f"No command type selected for reader {reader.serial_number}")
         return
@@ -104,6 +102,8 @@ def send_command(reader, command_type, client, payload=None):
 
     message_json = json.dumps(message)
     
+    client = get_task_mqtt_client()
+    
     if not client.is_connected():
         logger.error("MQTT client is not connected. Attempting to reconnect...")
         try:
@@ -114,13 +114,9 @@ def send_command(reader, command_type, client, payload=None):
             return
 
     try:
-        result, mid = client.publish(topic, message_json)
-        if result == mqtt.MQTT_ERR_SUCCESS:
-            logger.info(f"Message published successfully with message ID: {mid}")
-            return True
-        else:
-            logger.error(f"Failed to publish message. Error code: {result}")
-            return False
+        result = client.publish(topic, message_json)
+        logger.info(f"Message published successfully.")
+        return True
     except Exception as e:
         logger.exception(f"An exception occurred while publishing the message: {e}")
         return False
@@ -148,6 +144,36 @@ def handle_mode_command(reader, data):
         }
     }
     return send_command(reader, 'mode', payload)
+
+def store_command(reader, command_type):
+    try:
+        command = Command.objects.create(
+            reader=reader,
+            command=command_type,
+            status='PENDING'
+        )
+        logger.info(f"Command stored: {command}")
+        return command
+    except Exception as e:
+        logger.error(f"Error storing command: {str(e)}")
+        raise
+
+def update_command_status(reader_serial, command_type, status, response):
+    try:
+        command = Command.objects.filter(
+            reader__serial_number=reader_serial,
+            command=command_type,
+            status='PROCESSING'
+        ).latest('created_at')
+        
+        command.status = status
+        command.response = response
+        command.save()
+        logger.info(f"Command status updated: {command}")
+    except Command.DoesNotExist:
+        logger.warning(f"No matching command found for update: {reader_serial} - {command_type}")
+    except Exception as e:
+        logger.error(f"Error updating command status: {str(e)}")
 
 def get_detailed_status_events(search_query, sort_by):
     return DetailedStatusEvent.objects.filter(

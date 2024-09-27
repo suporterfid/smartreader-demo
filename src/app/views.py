@@ -1,18 +1,26 @@
 # views.py
+import logging
 import json
 from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext as _
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.urls import reverse
-from .mqtt_client import client
 
-from app.models import DetailedStatusEvent, Reader
+from app.tasks import process_command
+
+
+from app.models import DetailedStatusEvent, Reader, Command
 from .services import (
     get_tag_events, get_paginated_items, get_readers, send_command,
-    handle_mode_command, get_detailed_status_events, send_command_service
+    handle_mode_command, get_detailed_status_events,
+    store_command
 )
 from .forms import ReaderForm, ModeForm
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def tag_event_list(request):
@@ -81,34 +89,52 @@ def reader_edit(request, pk):
         form = ReaderForm(instance=reader)
     return render(request, 'app/reader_form.html', {'form': form})
 
-def send_command(request, reader_id):
-    if request is None or not hasattr(request, 'user') or not request.user.is_authenticated:
-        return redirect(f"{reverse('login')}?next={request.path}")
+# def send_command(request, reader_id):
+#     if request is None or not hasattr(request, 'user') or not request.user.is_authenticated:
+#         return redirect(f"{reverse('login')}?next={request.path}")
 
+#     command_type = request.POST.get('command_type')
+
+#     if not command_type:
+#         messages.error(request, _("No command type selected."))
+#         return redirect('reader_list')
+
+#     # Get the payload from the POST data
+#     payload = request.POST.get('payload')
+#     parsed_payload = {}
+
+#     if payload:
+#         try:
+#             parsed_payload = json.loads(payload)
+#         except json.JSONDecodeError:
+#             messages.error(request, _("Invalid JSON payload provided."))
+#             return redirect('reader_list')
+
+#     # Use the service to send the command
+#     success, message = send_command_service(request, reader_id, command_type, client, parsed_payload)
+    
+#     if success:
+#         messages.success(request, message)
+#     else:
+#         messages.error(request, message)
+
+#     return redirect('reader_list')
+
+def send_command(request, reader_id):
+    reader = get_object_or_404(Reader, id=reader_id)
     command_type = request.POST.get('command_type')
 
     if not command_type:
         messages.error(request, _("No command type selected."))
         return redirect('reader_list')
 
-    # Get the payload from the POST data
-    payload = request.POST.get('payload')
-    parsed_payload = {}
-
-    if payload:
-        try:
-            parsed_payload = json.loads(payload)
-        except json.JSONDecodeError:
-            messages.error(request, _("Invalid JSON payload provided."))
-            return redirect('reader_list')
-
-    # Use the service to send the command
-    success, message = send_command_service(request, reader_id, command_type, client, parsed_payload)
-    
-    if success:
-        messages.success(request, message)
-    else:
-        messages.error(request, message)
+    try:
+        command = store_command(reader, command_type)
+        process_command.delay(command.id)
+        messages.success(request, _("Command '%(command)s' queued for processing.") % {'command': command_type})
+    except Exception as e:
+        logger.error(f"Error queueing command: {str(e)}")
+        messages.error(request, _("An error occurred while processing the command."))
 
     return redirect('reader_list')
 
@@ -119,8 +145,9 @@ def send_command_to_readers(request):
         command_type = request.POST.get('command')
         readers = Reader.objects.filter(id__in=reader_ids)
 
+        # from .mqtt_client import client
         for reader in readers:
-            send_command(reader, command_type, client)
+            send_command(reader, command_type)
         
         return redirect('reader_list')
 
@@ -135,6 +162,35 @@ def mode_command(request, reader_id):
     else:
         form = ModeForm()
     return render(request, 'app/mode_form.html', {'form': form, 'reader': reader})
+
+def command_history(request):
+    search_query = request.GET.get('search', '')
+    reader_serial = request.GET.get('reader', '')
+    
+    commands = Command.objects.all()
+    
+    if reader_serial:
+        commands = commands.filter(reader__serial_number=reader_serial)
+    
+    if search_query:
+        commands = commands.filter(
+            Q(reader__serial_number__icontains=search_query) |
+            Q(command__icontains=search_query) |
+            Q(status__icontains=search_query)
+        )
+    
+    commands = commands.select_related('reader').order_by('-date_sent')
+
+    paginator = Paginator(commands, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'reader_serial': reader_serial,
+    }
+    return render(request, 'app/command_history.html', context)
 
 @login_required
 def detailed_status_event_list(request):

@@ -7,6 +7,7 @@
 <div class="container-fluid">
     <h1 class="mb-4 d-flex justify-content-between align-items-center">
         {% trans "Readers" %}
+        <a href="{% url 'command_history' %}" class="btn btn-info me-2">{% trans "Command History" %}</a>
         <a href="{% url 'reader_create' %}" class="btn btn-success">{% trans "Add Reader" %}</a>
     </h1>
     <form method="get" class="form-inline mb-3">
@@ -36,6 +37,7 @@
                 <td>{{ reader.enabled }}</td>
                 <td>
                     <a href="{% url 'reader_edit' reader.id %}" class="btn btn-warning btn-sm">{% trans "Edit" %}</a>
+                    <a href="{% url 'command_history' %}?reader={{ reader.serial_number }}" class="btn btn-info btn-sm">{% trans "History" %}</a>
                 </td>
                 <td>
                     <form method="post" action="{% url 'send_command' reader.id %}">

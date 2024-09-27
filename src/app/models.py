@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 # Create your models here.
 
@@ -12,16 +13,32 @@ class Reader(models.Model):
 
 class Command(models.Model):
     COMMAND_TYPES = [
-        ('start', 'Start'),
-        ('stop', 'Stop'),
-        ('status-detailed', 'Status Detailed'),
-        ('mode', 'Mode'),
+        ('start', _('Start')),
+        ('stop', _('Stop')),
+        ('status-detailed', _('Status Detailed')),
+        ('mode', _('Mode')),
     ]
-    command_type = models.CharField(max_length=50, choices=COMMAND_TYPES)
-    reader = models.ForeignKey(Reader, on_delete=models.CASCADE)
-    date_sent = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=50)
-    details = models.TextField()
+    COMMAND_STATUS = [
+        ('PENDING', _('Pending')),
+        ('PROCESSING', _('Processing')),
+        ('COMPLETED', _('Completed')),
+        ('FAILED', _('Failed')),
+    ]
+    command_type = models.CharField(max_length=50, choices=COMMAND_TYPES, verbose_name=_('Command Type'))
+    reader = models.ForeignKey(Reader, on_delete=models.CASCADE, verbose_name=_('Reader'))
+    command = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Command'))
+    details = models.TextField(default=None, blank=True, null=True, verbose_name=_('Details'))
+    status = models.CharField(max_length=50, choices=COMMAND_STATUS, default='PENDING', verbose_name=_('Status'))
+    date_sent = models.DateTimeField(auto_now_add=True, verbose_name=_('Date Sent'))
+    updated_at = models.DateTimeField(auto_now=True, blank=True, null=True, verbose_name=_('Updated At'))
+    response = models.TextField(default=None, blank=True, null=True, verbose_name=_('Response'))  
+    
+    class Meta:
+        verbose_name = _('Command')
+        verbose_name_plural = _('Commands')
+
+    def __str__(self):
+        return f"{self.reader.serial_number} - {self.command} ({self.status})"
 
 class TagEvent(models.Model):
     reader = models.ForeignKey(Reader, on_delete=models.CASCADE)

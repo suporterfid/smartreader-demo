@@ -3,6 +3,10 @@ version: '3'
 services:
   web:
     build: .
+    command: >
+      sh -c "python manage.py makemigrations && 
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
     volumes:
@@ -10,6 +14,11 @@ services:
     depends_on:
       - mqtt
       - db
+      - redis
+    environment:
+      - DATABASE_URL=postgres://smartreader_user:smartreader_password@db:5432/smartreaderdb
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  
     networks:
       - app_network
 
@@ -30,6 +39,29 @@ services:
     image: eclipse-mosquitto
     ports:
       - "1883:1883"
+    networks:
+      - app_network
+  
+  redis:
+    image: redis:6
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+
+  celery:
+    build: .
+    command: celery -A config worker -l info
+    volumes:
+      - ./src:/app
+    depends_on:
+      - mqtt
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgres://smartreader_user:smartreader_password@db:5432/smartreaderdb
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     networks:
       - app_network
 

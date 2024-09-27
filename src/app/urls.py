@@ -11,6 +11,7 @@ urlpatterns = [
     #path('readers/send_command/', views.send_command_to_readers, name='send_command_to_readers'),
     path('send-command/<int:reader_id>/', views.send_command, name='send_command'),
     path('readers/<int:reader_id>/mode/', views.mode_command, name='mode_command'),
+    path('command-history/', views.command_history, name='command_history'),
 
     path('tag-events/', views.tag_event_list, name='tag_event_list'),
     path('detailed-status-events/', views.detailed_status_event_list, name='detailed_status_event_list'),
