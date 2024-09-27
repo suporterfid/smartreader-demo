@@ -2,6 +2,7 @@
 import logging
 import json
 import uuid
+from django.conf import settings
 from django.db.models import Q
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
@@ -33,7 +34,7 @@ def get_readers(search_query, sort_by):
     ).order_by(sort_by)
 
 def send_command_service(request, reader_id, command_type, payload=None):
-    from .mqtt_client import get_task_mqtt_client
+    
     reader = get_object_or_404(Reader, pk=reader_id)
 
     if not command_type:
@@ -58,12 +59,13 @@ def send_command_service(request, reader_id, command_type, payload=None):
     logger.info(f"Sending command '{command_id}' - '{command_type}' to reader '{reader.serial_number}' on topic '{topic}' message: {message}")
     message_json = json.dumps(message)
 
-    client = get_task_mqtt_client()
+    from .mqtt_client import get_mqtt_client
+    client = get_mqtt_client()
 
     if not client.is_connected():
         logger.error("MQTT client is not connected. Attempting to reconnect...")
         try:
-            client.reconnect()
+            client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
             logger.info("Reconnected to MQTT broker")
         except Exception as e:
             logger.exception(f"Failed to reconnect to MQTT broker: {e}")
@@ -78,7 +80,6 @@ def send_command_service(request, reader_id, command_type, payload=None):
         return False, _("Failed to send command. Please try again.")
     
 def send_command(reader, command_type, payload=None):
-    from .mqtt_client import get_task_mqtt_client
     if not command_type:
         logger.error(f"No command type selected for reader {reader.serial_number}")
         return
@@ -102,8 +103,9 @@ def send_command(reader, command_type, payload=None):
 
     message_json = json.dumps(message)
     
-    client = get_task_mqtt_client()
-    
+    from .mqtt_client import get_mqtt_client
+    client = get_mqtt_client()
+
     if not client.is_connected():
         logger.error("MQTT client is not connected. Attempting to reconnect...")
         try:

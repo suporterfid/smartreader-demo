@@ -10,127 +10,148 @@ from .services import (
     update_reader_last_communication, process_tag_events, 
     store_detailed_status_event, update_command_status
 )
+from threading import Lock
 
-# Set up Django environment
-if not os.environ.get('DJANGO_SETTINGS_MODULE'):
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-    django.setup()
-
-# Set up logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
 
-client = mqtt.Client()
+class MQTTManager:
+    _instance = None
+    _lock = Lock()
+	
 
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        logger.info(f"Connected to MQTT broker at {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
-    else:
-        logger.error(f"Connection failed with result code {rc}")
-    client.subscribe('smartreader/+/manageResult')
-    client.subscribe('smartreader/+/tagEvents')
-    client.subscribe('smartreader/+/event')
-    client.subscribe('smartreader/+/metrics')
-    client.subscribe('smartreader/+/lwt')
-    logger.info("Subscribed to topics")
 
-def on_message(client, userdata, msg):
-    topic = msg.topic
-    payload = json.loads(msg.payload.decode())
-    logger.info(f"Received message on topic {topic}")
-    serial_number = topic.split('/')[1]
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(MQTTManager, cls).__new__(cls)
+                cls._instance.initialize()
+        return cls._instance
 
-    reader = update_reader_last_communication(serial_number)
-    if reader is None:
-        return
+    def initialize(self):
+        	# Set up Django environment
+        if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+            django.setup()
 
-    if '/tagEvents' in topic:
-        tag_reads = payload.get('tag_reads', [])
-        process_tag_events(reader, tag_reads)
-    elif '/event' in topic:
-        store_detailed_status_event(reader, payload)
-    elif '/manageResult' in topic:
+        # Set up logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        self.client = mqtt.Client()
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
+        self.topics = [
+            'smartreader/+/manageResult',
+            'smartreader/+/tagEvents',
+            'smartreader/+/event',
+            'smartreader/+/metrics',
+            'smartreader/+/lwt'
+        ]
+
+    def connect(self):
         try:
-            payload_data = json.loads(msg.payload.decode())
-            command_type = payload_data.get('command')
-            status = 'COMPLETED' if payload_data.get('success') else 'FAILED'
-            response = json.dumps(payload_data)
-            update_command_status(serial_number, command_type, status, response)
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in MQTT message: {msg.payload}")
+            self.client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
+            self.client.loop_start()
+            logger.info(f"Connected to MQTT broker at {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
         except Exception as e:
-            logger.error(f"Error processing MQTT message: {str(e)}")
-    elif '/controlResult' in topic:
-        try:
-            payload_data = json.loads(msg.payload.decode())
-            command_type = payload_data.get('command')
-            status = 'COMPLETED' if payload_data.get('success') else 'FAILED'
-            response = json.dumps(payload_data)
-            update_command_status(serial_number, command_type, status, response)
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in MQTT message: {msg.payload}")
-        except Exception as e:
-            logger.error(f"Error processing MQTT message: {str(e)}")
+            logger.error(f"Failed to connect to MQTT broker: {str(e)}")
 
-def on_disconnect(client, userdata, rc):
-    if rc != 0:
-        logger.warning(f"Unexpected disconnection from MQTT broker {settings.MQTT_BROKER}:{settings.MQTT_PORT}. Attempting to reconnect...")
-        try:
-            client.reconnect()
-        except Exception as e:
-            logger.error(f"Failed to reconnect: {e}")
-
-def publish(topic, message):
-    try:
-        if client.is_connected():
-            result = client.publish(topic, json.dumps(message))
-            if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                logger.error(f"Failed to publish message to {topic}. Error code: {result.rc}")
-            return result
+    def on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            logger.info(f"Connected to MQTT broker at {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
+            self.subscribe_to_topics()
         else:
-            logger.error("Cannot publish message: MQTT client is not connected.")
-            # Attempt to reconnect
+            logger.error(f"Connection failed with result code {rc}")
+    
+    def on_disconnect(self, client, userdata, rc):
+        if rc != 0:
+            logger.warning(f"Unexpected disconnection from MQTT broker {settings.MQTT_BROKER}:{settings.MQTT_PORT}. Attempting to reconnect...")
             try:
-                client.reconnect()
+                self.client.reconnect()
             except Exception as e:
                 logger.error(f"Failed to reconnect: {e}")
-            return None
-    except Exception as e:
-        logger.exception(f"Error publishing message to {topic}: {e}")
-        return None
 
-def on_publish(client, userdata, mid):
-    logger.info(f"Message {mid} published successfully")
+    def on_message(client, userdata, msg):
+        topic = msg.topic
+        payload = json.loads(msg.payload.decode())
+        logger.info(f"Received message on topic {topic}")
+        serial_number = topic.split('/')[1]
 
-def get_task_mqtt_client():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_publish = on_publish
+        reader = update_reader_last_communication(serial_number)
+        if reader is None:
+            return
 
-    try:
-        client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
-        client.loop_start()
-        logger.info(f"Task MQTT client connected to {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
-    except Exception as e:
-        logger.error(f"Failed to connect task MQTT client: {str(e)}")
+        if '/tagEvents' in topic:
+            tag_reads = payload.get('tag_reads', [])
+            process_tag_events(reader, tag_reads)
+        elif '/event' in topic:
+            store_detailed_status_event(reader, payload)
+        elif '/manageResult' in topic:
+            try:
+                payload_data = json.loads(msg.payload.decode())
+                command_type = payload_data.get('command')
+                status = 'COMPLETED' if payload_data.get('success') else 'FAILED'
+                response = json.dumps(payload_data)
+                update_command_status(serial_number, command_type, status, response)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON in MQTT message: {msg.payload}")
+            except Exception as e:
+                logger.error(f"Error processing MQTT message: {str(e)}")
+        elif '/controlResult' in topic:
+            try:
+                payload_data = json.loads(msg.payload.decode())
+                command_type = payload_data.get('command')
+                status = 'COMPLETED' if payload_data.get('success') else 'FAILED'
+                response = json.dumps(payload_data)
+                update_command_status(serial_number, command_type, status, response)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON in MQTT message: {msg.payload}")
+            except Exception as e:
+                logger.error(f"Error processing MQTT message: {str(e)}")
 
-    return client
+    def subscribe_to_topics(self):
+        for topic in self.topics:
+            self.client.subscribe(topic)
+            logger.info(f"Subscribed to topic: {topic}")
+            
+    def publish(self, topic, message):
+        try:
+            if self.client.is_connected():
+                result = self.client.publish(topic, json.dumps(message))
+                if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                    logger.info(f"Message published successfully to {topic}")
+                return True
+            else:
+                logger.error("Cannot publish message: MQTT client is not connected.")
+                # Attempt to reconnect
+                try:
+                    self.client.reconnect()
+                except Exception as e:
+                    logger.error(f"Failed to reconnect: {e}")
+                return False
+        except Exception as e:
+            logger.exception(f"Error publishing message to {topic}: {e}")
+            return False
 
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-client.on_message = on_message
+    def run(self):
+        self.connect()
+        self.client.loop()
 
-# client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
-# client.loop_start()
+mqtt_manager = MQTTManager()
+
+def get_mqtt_client():
+    if not mqtt_manager.client.is_connected:
+        mqtt_manager.connect()
+    return mqtt_manager.client
+
+# This function is no longer needed
+# def get_task_mqtt_client():
+#     ...
 
 def start_client():
-    try:
-        logger.info(f"Connecting to {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
-        client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
-        client.loop_start()
-    except Exception as e:
-        logger.error(f"Failed to start MQTT client: {e}")
+    # This is now a no-op, as the client is started when MQTTManager is instantiated
+    pass
