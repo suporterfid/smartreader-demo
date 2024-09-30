@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.utils.translation import gettext as _
 from django.utils import timezone
 from datetime import datetime
-from .models import Command, Reader, TagEvent, DetailedStatusEvent
+from .models import Command, Reader, TagEvent, DetailedStatusEvent, Alert, AlertLog, ScheduledCommand
 
 
 logger = logging.getLogger(__name__)
@@ -264,3 +264,122 @@ def store_detailed_status_event(reader, payload):
         non_antenna_details=non_antenna_details
     )
     logger.info(f"Stored detailed status event (type: {event_type}) for reader {reader.serial_number}")
+
+def update_reader_connection_status(reader, is_connected):
+    reader.is_connected = is_connected
+    reader.save(update_fields=['is_connected', 'last_communication'])
+    logger.info(f"Reader {reader.serial_number} connection status updated: {'connected' if is_connected else 'disconnected'}")
+
+def get_alerts(user, search_query, sort_by, page):
+    alerts = Alert.objects.filter(user=user)
+    
+    if search_query:
+        alerts = alerts.filter(
+            Q(name__icontains=search_query) |
+            Q(condition_type__icontains=search_query)
+        )
+    
+    alerts = alerts.order_by(sort_by)
+    return get_paginated_items(alerts, page)
+
+def create_alert(form, user):
+    alert = form.save(commit=False)
+    alert.user = user
+    alert.save()
+    return alert
+
+def update_alert(form):
+    return form.save()
+
+def delete_alert(pk, user):
+    alert = get_object_or_404(Alert, pk=pk, user=user)
+    alert.delete()
+
+def toggle_alert(pk, user):
+    alert = get_object_or_404(Alert, pk=pk, user=user)
+    alert.is_active = not alert.is_active
+    alert.save()
+    return alert
+
+def get_alert_logs(user, search_query, sort_by, page):
+    alert_logs = AlertLog.objects.filter(alert__user=user)
+    
+    if search_query:
+        alert_logs = alert_logs.filter(
+            Q(alert__name__icontains=search_query) |
+            Q(details__icontains=search_query)
+        )
+    
+    alert_logs = alert_logs.order_by(sort_by)
+    return get_paginated_items(alert_logs, page)
+
+def get_alert_by_id(pk, user):
+    return get_object_or_404(Alert, pk=pk, user=user)
+
+def get_scheduled_commands(search_query, sort_by):
+    return ScheduledCommand.objects.filter(
+        Q(reader__serial_number__icontains=search_query) |
+        Q(command_type__icontains=search_query) |
+        Q(recurrence__icontains=search_query)
+    ).order_by(sort_by)
+
+def create_scheduled_command(data):
+    try:
+        scheduled_command = ScheduledCommand.objects.create(**data)
+        logger.info(f"Created scheduled command: {scheduled_command}")
+        return scheduled_command
+    except Exception as e:
+        logger.error(f"Error creating scheduled command: {str(e)}")
+        raise
+
+def update_scheduled_command(scheduled_command_id, data):
+    try:
+        scheduled_command = ScheduledCommand.objects.get(id=scheduled_command_id)
+        for key, value in data.items():
+            setattr(scheduled_command, key, value)
+        scheduled_command.save()
+        logger.info(f"Updated scheduled command: {scheduled_command}")
+        return scheduled_command
+    except ScheduledCommand.DoesNotExist:
+        logger.error(f"Scheduled command with id {scheduled_command_id} not found")
+        raise
+    except Exception as e:
+        logger.error(f"Error updating scheduled command: {str(e)}")
+        raise
+
+def delete_scheduled_command(scheduled_command_id):
+    try:
+        scheduled_command = ScheduledCommand.objects.get(id=scheduled_command_id)
+        scheduled_command.delete()
+        logger.info(f"Deleted scheduled command: {scheduled_command}")
+    except ScheduledCommand.DoesNotExist:
+        logger.error(f"Scheduled command with id {scheduled_command_id} not found")
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting scheduled command: {str(e)}")
+        raise
+
+def execute_scheduled_commands():
+    now = timezone.now()
+    scheduled_commands = ScheduledCommand.objects.filter(is_active=True, scheduled_time__lte=now)
+    
+    for command in scheduled_commands:
+        try:
+            from tasks import process_command
+            process_command.delay(command.reader.id, command.command_type)
+            logger.info(f"Executed scheduled command: {command}")
+            
+            if command.recurrence == 'ONCE':
+                command.is_active = False
+            else:
+                if command.recurrence == 'DAILY':
+                    command.scheduled_time += timezone.timedelta(days=1)
+                elif command.recurrence == 'WEEKLY':
+                    command.scheduled_time += timezone.timedelta(weeks=1)
+                elif command.recurrence == 'MONTHLY':
+                    command.scheduled_time += timezone.timedelta(days=30)  # Approximate
+            
+            command.last_run = now
+            command.save()
+        except Exception as e:
+            logger.error(f"Error executing scheduled command {command.id}: {str(e)}")

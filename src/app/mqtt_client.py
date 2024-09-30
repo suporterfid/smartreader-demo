@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 import json
 import logging
 from .services import (
-    update_reader_last_communication, process_tag_events, 
+    update_reader_connection_status, update_reader_last_communication, process_tag_events, 
     store_detailed_status_event, update_command_status
 )
 from threading import Lock
@@ -88,7 +88,13 @@ class MQTTManager:
         if '/tagEvents' in topic:
             tag_reads = payload.get('tag_reads', [])
             process_tag_events(reader, tag_reads)
+        if '/lwt' in topic:
+            if payload.get('smartreader-mqtt-status') == 'disconnected':
+                update_reader_connection_status(reader, False)
+                store_detailed_status_event(reader, payload)
         elif '/event' in topic:
+            if payload.get('smartreader-mqtt-status') == 'connected':
+                update_reader_connection_status(reader, True)
             store_detailed_status_event(reader, payload)
         elif '/manageResult' in topic:
             try:

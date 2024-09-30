@@ -12,13 +12,15 @@ from django.urls import reverse
 from app.tasks import process_command
 
 
-from app.models import DetailedStatusEvent, Reader, Command
+from app.models import DetailedStatusEvent, Reader, Command, ScheduledCommand
 from .services import (
     get_tag_events, get_paginated_items, get_readers, send_command,
     handle_mode_command, get_detailed_status_events,
-    store_command
+    store_command, get_alerts, create_alert, update_alert, delete_alert, 
+    toggle_alert, get_alert_logs, get_alert_by_id, get_scheduled_commands, 
+    create_scheduled_command, update_scheduled_command, delete_scheduled_command
 )
-from .forms import ReaderForm, ModeForm
+from .forms import ReaderForm, ModeForm, AlertForm, ScheduledCommandForm
 
 logger = logging.getLogger(__name__)
 
@@ -123,18 +125,16 @@ def reader_edit(request, pk):
 def send_command(request, reader_id):
     reader = get_object_or_404(Reader, id=reader_id)
     command_type = request.POST.get('command_type')
-
     if not command_type:
         messages.error(request, _("No command type selected."))
         return redirect('reader_list')
-
     try:
         command = store_command(reader, command_type)
-        process_command.delay(command.id)
         messages.success(request, _("Command '%(command)s' queued for processing.") % {'command': command_type})
     except Exception as e:
         logger.error(f"Error queueing command: {str(e)}")
         messages.error(request, _("An error occurred while processing the command."))
+    return redirect('reader_list')
 
     return redirect('reader_list')
 
@@ -212,6 +212,122 @@ def detailed_status_event_detail(request, event_id):
         'event': event,
         'filter_query': filter_query
     })
+
+@login_required
+def alert_list(request):
+    search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', 'name')
+    page_obj = get_alerts(request.user, search_query, sort_by, request.GET.get('page'))
+    
+    return render(request, 'app/alert_list.html', {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'sort_by': sort_by
+    })
+
+@login_required
+def alert_create(request):
+    if request.method == 'POST':
+        form = AlertForm(request.POST)
+        if form.is_valid():
+            create_alert(form, request.user)
+            messages.success(request, _('Alert created successfully.'))
+            return redirect('alert_list')
+    else:
+        form = AlertForm()
+    return render(request, 'app/alert_form.html', {'form': form})
+
+@login_required
+def alert_edit(request, pk):
+    alert = get_alert_by_id(pk, request.user)
+    if request.method == 'POST':
+        form = AlertForm(request.POST, instance=alert)
+        if form.is_valid():
+            update_alert(form)
+            messages.success(request, _('Alert updated successfully.'))
+            return redirect('alert_list')
+    else:
+        form = AlertForm(instance=alert)
+    return render(request, 'app/alert_form.html', {'form': form, 'alert': alert})
+
+@login_required
+def alert_delete(request, pk):
+    if request.method == 'POST':
+        delete_alert(pk, request.user)
+        messages.success(request, _('Alert deleted successfully.'))
+    return redirect('alert_list')
+
+@login_required
+def alert_toggle(request, pk):
+    alert = toggle_alert(pk, request.user)
+    status = _('activated') if alert.is_active else _('deactivated')
+    messages.success(request, _(f'Alert {status} successfully.'))
+    return redirect('alert_list')
+
+@login_required
+def alert_log_list(request):
+    search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', '-triggered_at')
+    page_obj = get_alert_logs(request.user, search_query, sort_by, request.GET.get('page'))
+    
+    return render(request, 'app/alert_log_list.html', {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'sort_by': sort_by
+    })
+
+@login_required
+def scheduled_command_list(request):
+    search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', 'scheduled_time')
+    scheduled_commands = get_scheduled_commands(search_query, sort_by)
+    page_obj = get_paginated_items(scheduled_commands, request.GET.get('page'))
+    return render(request, 'app/scheduled_command_list.html', {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'sort_by': sort_by
+    })
+
+@login_required
+def scheduled_command_create(request):
+    if request.method == 'POST':
+        form = ScheduledCommandForm(request.POST)
+        if form.is_valid():
+            try:
+                create_scheduled_command(form.cleaned_data)
+                messages.success(request, _("Scheduled command created successfully."))
+                return redirect('scheduled_command_list')
+            except Exception as e:
+                messages.error(request, _("Error creating scheduled command: %s") % str(e))
+    else:
+        form = ScheduledCommandForm()
+    return render(request, 'app/scheduled_command_form.html', {'form': form})
+
+@login_required
+def scheduled_command_edit(request, pk):
+    scheduled_command = get_object_or_404(ScheduledCommand, pk=pk)
+    if request.method == 'POST':
+        form = ScheduledCommandForm(request.POST, instance=scheduled_command)
+        if form.is_valid():
+            try:
+                update_scheduled_command(pk, form.cleaned_data)
+                messages.success(request, _("Scheduled command updated successfully."))
+                return redirect('scheduled_command_list')
+            except Exception as e:
+                messages.error(request, _("Error updating scheduled command: %s") % str(e))
+    else:
+        form = ScheduledCommandForm(instance=scheduled_command)
+    return render(request, 'app/scheduled_command_form.html', {'form': form})
+
+@login_required
+def scheduled_command_delete(request, pk):
+    if request.method == 'POST':
+        try:
+            delete_scheduled_command(pk)
+            messages.success(request, _("Scheduled command deleted successfully."))
+        except Exception as e:
+            messages.error(request, _("Error deleting scheduled command: %s") % str(e))
+    return redirect('scheduled_command_list')
 
 def home(request):
     return redirect('reader_list')

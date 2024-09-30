@@ -48,8 +48,12 @@ Create a `.env` file in the project root and set up the following environment va
 ```env
 SECRET_KEY=your-secret-key
 DEBUG=True
-MQTT_BROKER=test.mosquitto.org
+DB_SSL_REQUIRE=False
+SECURE_SSL_REDIRECT = False
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0 
 MQTT_PORT=1883
+MQTT_BROKER=test.mosquitto.org
 ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 

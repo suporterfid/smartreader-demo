@@ -1,0 +1,30 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+{% load form_filters %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% if form.instance.pk %}{% trans "Edit Scheduled Command" %}{% else %}{% trans "Add Scheduled Command" %}{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            {{ form.reader.label_tag }}
+            {{ form.reader|add_class:"form-control" }}
+        </div>
+        <div class="form-group">
+            {{ form.command_type.label_tag }}
+            {{ form.command_type|add_class:"form-control" }}
+        </div>
+        <div class="form-group">
+            {{ form.scheduled_time.label_tag }}
+            {{ form.scheduled_time|add_class:"form-control" }}
+        </div>
+        <div class="form-group">
+            {{ form.recurrence.label_tag }}
+            {{ form.recurrence|add_class:"form-control" }}
+        </div>
+        <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+        <a href="{% url 'scheduled_command_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
+    </form>
+</div>
+{% endblock %}

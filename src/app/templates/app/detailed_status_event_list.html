@@ -2,10 +2,10 @@
 
 {% extends 'app/base.html' %}
 {% load i18n %}
-{% block title %}{% trans "Detailed Status Events" %}{% endblock %}
+{% block title %}{% trans "Reader Events" %}{% endblock %}
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">{% trans "Detailed Status Events" %}</h1>
+    <h1 class="mb-4">{% trans "Reader Events" %}</h1>
     <form method="get" class="form-inline mb-3">
         <input type="text" name="search" value="{{ search_query }}" placeholder="{% trans 'Search' %}" class="form-control mr-2">
         <button type="submit" class="btn btn-primary">{% trans 'Search' %}</button>

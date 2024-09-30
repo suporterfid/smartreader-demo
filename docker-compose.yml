@@ -16,9 +16,14 @@ services:
       - db
       - redis
     environment:
-      - DATABASE_URL=postgres://smartreader_user:smartreader_password@db:5432/smartreaderdb
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0  
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}  
     networks:
       - app_network
 
@@ -59,9 +64,33 @@ services:
       - db
       - redis
     environment:
-      - DATABASE_URL=postgres://smartreader_user:smartreader_password@db:5432/smartreaderdb
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}  
+    networks:
+      - app_network
+  
+  celery-beat:
+    build: .
+    command: celery -A config beat -l info
+    volumes:
+      - ./src:/app
+    depends_on:
+      - celery
+    environment:
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}  
     networks:
       - app_network
 

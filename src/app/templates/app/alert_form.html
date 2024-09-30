@@ -1,0 +1,84 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+{% block title %}{% if form.instance.pk %}{% trans "Edit Alert" %}{% else %}{% trans "Create Alert" %}{% endif %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>{% if form.instance.pk %}{% trans "Edit Alert" %}{% else %}{% trans "Create Alert" %}{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-group">
+                {{ field.label_tag }}
+                {% if field.name == 'condition_params' %}
+                    <span class="ml-1" id="conditionParamsHelp">
+                        <i class="fas fa-question-circle"></i>
+                    </span>
+                    <div id="conditionParamsPopover" class="d-none">
+                        <h5>{% trans 'Condition Parameters Help' %}</h5>
+                        <p><strong>{% trans 'For tag_frequency:' %}</strong><br>
+                        {<br>
+                          &nbsp;&nbsp;"tag_epc": "123456",<br>
+                          &nbsp;&nbsp;"threshold": 5,<br>
+                          &nbsp;&nbsp;"time_interval": 10<br>
+                        }</p>
+                        <p><strong>{% trans 'For reader_status:' %}</strong><br>
+                        {<br>
+                          &nbsp;&nbsp;"reader_serial": "READER001",<br>
+                          &nbsp;&nbsp;"offline_threshold": 5<br>
+                        }</p>
+                    </div>
+                {% endif %}
+                {{ field }}
+                {% if field.help_text %}
+                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                {% endif %}
+                {% for error in field.errors %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+        <a href="{% url 'alert_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var helpIcon = document.getElementById('conditionParamsHelp');
+        var popover = document.getElementById('conditionParamsPopover');
+
+        if (helpIcon && popover) {
+            helpIcon.addEventListener('click', function(event) {
+                console.log('Help icon clicked.');
+                event.stopPropagation();
+                popover.classList.toggle('d-none');
+                popover.style.position = 'absolute';
+                popover.style.zIndex = '1000';
+                popover.style.backgroundColor = 'white';
+                popover.style.border = '1px solid #ccc';
+                popover.style.padding = '10px';
+                popover.style.borderRadius = '5px';
+                popover.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+                
+                var iconRect = helpIcon.getBoundingClientRect();
+                popover.style.top = (iconRect.bottom + window.scrollY) + 'px';
+                popover.style.left = (iconRect.left + window.scrollX) + 'px';
+            });
+
+            document.addEventListener('click', function(event) {
+                console.log('Document clicked.');
+                if (!popover.contains(event.target) && event.target !== helpIcon) {
+                    popover.classList.add('d-none');
+                }
+            });
+        } else {
+            console.log('Help icon or popover not found.');
+        }
+
+        console.log('JavaScript loaded and executed.');
+    });
+</script>
+{% endblock %}

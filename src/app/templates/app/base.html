@@ -59,7 +59,16 @@
                 <i class="fas fa-tags"></i> {% trans "Tag Events" %}
             </a>
             <a href="{% url 'detailed_status_event_list' %}" class="list-group-item list-group-item-action">
-                <i class="fas fa-info-circle"></i> {% trans "Detailed Status Events" %}
+                <i class="fas fa-info-circle"></i> {% trans "Reader Events" %}
+            </a>
+            <a href="{% url 'alert_list' %}" class="list-group-item list-group-item-action">
+                <i class="fas fa-bell"></i> {% trans "Alerts" %}
+            </a>
+            <a href="{% url 'alert_log_list' %}"class="list-group-item list-group-item-action">
+                <i class="fas fa-clipboard-list"></i> {% trans "Alert Logs" %}
+            </a>
+            <a href="{% url 'scheduled_command_list' %}" class="list-group-item list-group-item-action">
+                <i class="fas fa-clock"></i> {% trans "Scheduled Commands" %}
             </a>
             <!-- Add more menu items as needed -->
         </ul>
@@ -118,5 +127,6 @@
             $('.alert').alert('close');
         }, 5000); // Close alert after 5 seconds
     </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

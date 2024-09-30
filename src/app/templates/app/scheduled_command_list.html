@@ -1,0 +1,54 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">{% trans "Scheduled Commands" %}
+        <a href="{% url 'scheduled_command_create' %}" class="btn btn-success float-right">{% trans "Add Scheduled Command" %}</a>
+    </h1>
+
+    <form method="get" class="mb-3">
+        <div class="input-group">
+            <input type="text" name="search" class="form-control" placeholder="{% trans 'Search' %}" value="{{ search_query }}">
+            <div class="input-group-append">
+                <button class="btn btn-outline-secondary" type="submit">{% trans "Search" %}</button>
+            </div>
+        </div>
+    </form>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th><a href="?sort=reader__serial_number">{% trans "Reader Serial Number" %}</a></th>
+                <th><a href="?sort=command_type">{% trans "Command Type" %}</a></th>
+                <th><a href="?sort=scheduled_time">{% trans "Scheduled Time" %}</a></th>
+                <th><a href="?sort=recurrence">{% trans "Recurrence" %}</a></th>
+                <th><a href="?sort=is_active">{% trans "Is Active" %}</a></th>
+                <th><a href="?sort=last_run">{% trans "Last Run" %}</a></th>
+                <th>{% trans "Actions" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for scheduled_command in page_obj %}
+            <tr>
+                <td>{{ scheduled_command.reader.serial_number }}</td>
+                <td>{{ scheduled_command.get_command_type_display }}</td>
+                <td>{{ scheduled_command.scheduled_time }}</td>
+                <td>{{ scheduled_command.get_recurrence_display }}</td>
+                <td>{{ scheduled_command.is_active }}</td>
+                <td>{{ scheduled_command.last_run|default_if_none:"-" }}</td>
+                <td>
+                    <a href="{% url 'scheduled_command_edit' scheduled_command.id %}" class="btn btn-warning btn-sm">{% trans "Edit" %}</a>
+                    <form method="post" action="{% url 'scheduled_command_delete' scheduled_command.id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{% trans "Are you sure you want to delete this scheduled command?" %}')">{% trans "Delete" %}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% include "app/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}
