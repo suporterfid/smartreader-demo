@@ -11,7 +11,9 @@ from django.contrib import messages
 from django.utils.translation import gettext as _
 from django.utils import timezone
 from datetime import datetime
-from .models import Command, Reader, TagEvent, DetailedStatusEvent, Alert, AlertLog, ScheduledCommand
+
+from app.mqtt_client import get_mqtt_client
+from .models import Command, Reader, TagEvent, DetailedStatusEvent, Alert, AlertLog, ScheduledCommand, Firmware
 
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,35 @@ def mode_clean_up(message_json):
     logger.info(f'Message after clean-up: {message_json}')
     
     return message_json
+
+def send_firmware_update_command(reader, firmware):
+    command_id = str(uuid.uuid4())
+    payload = {
+        "url": f"{settings.FIRMWARE_URL_BASE}{firmware.file.url}",
+        "timeoutInMinutes": 4,
+        "maxRetries": 3
+    }
+    message = {
+        "command": "upgrade",
+        "command_id": command_id,
+        "payload": payload
+    }
+    topic = f"smartreader/{reader.serial_number}/manage"
+    
+    client = get_mqtt_client()
+    if not client.is_connected():
+        logger.error("MQTT client is not connected. Attempting to reconnect...")
+        try:
+            mqtt_port = int(settings.MQTT_PORT)
+            mqtt_broker = settings.MQTT_BROKER
+            logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
+            client.connect(mqtt_broker, mqtt_port, 60)
+            logger.info("Reconnected to MQTT broker")
+        except Exception as e:
+            logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+            return False, _("Failed to send command. Please try again.")
+    result = client.publish(topic, json.dumps(message))
+    return result.rc == client.mqtt.MQTT_ERR_SUCCESS
     
 def send_command(reader, command_id, command_type, payload=None):
     if not command_type:
@@ -479,3 +510,18 @@ def execute_scheduled_commands():
             command.save()
         except Exception as e:
             logger.error(f"Error executing scheduled command {command.id}: {str(e)}")
+
+def get_all_firmwares():
+    return Firmware.objects.all().order_by('-upload_date')
+
+def upload_firmware(form):
+    return form.save()
+
+def get_active_firmwares():
+    return Firmware.objects.filter(is_active=True).order_by('-upload_date')
+
+def get_reader(reader_id):
+    return get_object_or_404(Reader, id=reader_id)
+
+def get_firmware(firmware_id):
+    return get_object_or_404(Firmware, id=firmware_id)

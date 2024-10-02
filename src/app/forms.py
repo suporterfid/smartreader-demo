@@ -1,6 +1,6 @@
 import json
 from django import forms
-from .models import Reader, Alert, ScheduledCommand
+from .models import Reader, Alert, ScheduledCommand, Firmware
 from django.utils.translation import gettext as _
 
 class ReaderForm(forms.ModelForm):
@@ -146,3 +146,8 @@ class ScheduledCommandForm(forms.ModelForm):
         widgets = {
             'scheduled_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }
+
+class FirmwareUploadForm(forms.ModelForm):
+    class Meta:
+        model = Firmware
+        fields = ['version', 'file', 'description']

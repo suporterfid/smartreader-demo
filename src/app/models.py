@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 
@@ -152,3 +153,41 @@ class TaskExecution(models.Model):
             # If the task doesn't exist, create it with the default status
             cls.objects.create(task_name=task_name, is_executed=False)
             print(f"Task {task_name} created with reset status.")
+
+class Firmware(models.Model):
+    version = models.CharField(max_length=50, unique=True)
+    file = models.FileField(
+        upload_to='firmware/',
+        validators=[FileExtensionValidator(allowed_extensions=['upgx'])]
+    )
+    description = models.TextField(blank=True)
+    upload_date = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    checksum = models.CharField(default=None, null=True, blank=True, max_length=64)  # For file integrity
+
+    def __str__(self):
+        return f"Firmware v{self.version}"
+
+    def save(self, *args, **kwargs):
+        if not self.pk:  # Only on create
+            self.checksum = self.calculate_checksum()
+        super().save(*args, **kwargs)
+
+    def calculate_checksum(self):
+        # Implement checksum calculation here
+        pass
+
+class FirmwareUpdateStatus(models.Model):
+    reader = models.ForeignKey(Reader, on_delete=models.CASCADE)
+    firmware = models.ForeignKey(Firmware, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=[
+        ('PENDING', _('Pending')),
+        ('IN_PROGRESS', _('In Progress')),
+        ('COMPLETED', _('Completed')),
+        ('FAILED', _('Failed'))
+    ])
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Firmware update for {self.reader.serial_number}: {self.status}"

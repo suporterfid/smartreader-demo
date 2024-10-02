@@ -11,16 +11,17 @@ from django.urls import reverse
 
 from app.tasks import process_command
 
-
 from app.models import DetailedStatusEvent, Reader, Command, ScheduledCommand
 from .services import (
-    get_tag_events, get_paginated_items, get_readers, send_command,
+    get_active_firmwares, get_all_firmwares, get_reader, get_tag_events, get_paginated_items, get_readers, send_command,
     handle_mode_command, get_detailed_status_events,
     store_command, get_alerts, create_alert, update_alert, delete_alert, 
     toggle_alert, get_alert_logs, get_alert_by_id, get_scheduled_commands, 
-    create_scheduled_command, update_scheduled_command, delete_scheduled_command
+    create_scheduled_command, update_scheduled_command, delete_scheduled_command, upload_firmware,
+    get_firmware, send_firmware_update_command
 )
-from .forms import ReaderForm, ModeForm, AlertForm, ScheduledCommandForm
+from .forms import FirmwareUploadForm, ReaderForm, ModeForm, AlertForm, ScheduledCommandForm
+from app import services
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +337,40 @@ def scheduled_command_delete(request, pk):
         except Exception as e:
             messages.error(request, _("Error deleting scheduled command: %s") % str(e))
     return redirect('scheduled_command_list')
+
+@login_required
+def firmware_list(request):
+    firmwares = get_all_firmwares()
+    return render(request, 'app/firmware_list.html', {'firmwares': firmwares})
+
+@login_required
+def firmware_upload(request):
+    if request.method == 'POST':
+        form = FirmwareUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            upload_firmware(form)
+            messages.success(request, _('Firmware uploaded successfully.'))
+            return redirect('firmware_list')
+    else:
+        form = FirmwareUploadForm()
+    return render(request, 'app/firmware_upload.html', {'form': form})
+
+@login_required
+def firmware_update(request, reader_id):
+    reader = get_reader(reader_id)
+    firmwares = get_active_firmwares()
+    
+    if request.method == 'POST':
+        firmware_id = request.POST.get('firmware')
+        firmware = get_firmware(firmware_id)
+        success = send_firmware_update_command(reader, firmware)
+        if success:
+            messages.success(request, _('Firmware update command sent successfully.'))
+        else:
+            messages.error(request, _('Failed to send firmware update command.'))
+        return redirect('reader_list')
+    
+    return render(request, 'app/firmware_update.html', {'reader': reader, 'firmwares': firmwares})
 
 def home(request):
     return redirect('reader_list')

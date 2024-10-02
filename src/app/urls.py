@@ -29,6 +29,10 @@ urlpatterns = [
     path('scheduled-commands/add/', views.scheduled_command_create, name='scheduled_command_create'),
     path('scheduled-commands/edit/<int:pk>/', views.scheduled_command_edit, name='scheduled_command_edit'),
     path('scheduled-commands/delete/<int:pk>/', views.scheduled_command_delete, name='scheduled_command_delete'),
+
+    path('firmware/', views.firmware_list, name='firmware_list'),
+    path('firmware/upload/', views.firmware_upload, name='firmware_upload'),
+    path('firmware/update/<int:reader_id>/', views.firmware_update, name='firmware_update'),
     
     path('login/', auth_views.LoginView.as_view(template_name='app/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),

@@ -1,0 +1,46 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Firmware List" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">{% trans "Firmware List" %}</h1>
+    <a href="{% url 'firmware_upload' %}" class="btn btn-primary mb-3">{% trans "Upload New Firmware" %}</a>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>{% trans "Version" %}</th>
+                <th>{% trans "Description" %}</th>
+                <th>{% trans "Upload Date" %}</th>
+                <th>{% trans "Status" %}</th>
+                <th>{% trans "Actions" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for firmware in firmwares %}
+            <tr>
+                <td>{{ firmware.version }}</td>
+                <td>{{ firmware.description|truncatechars:50 }}</td>
+                <td>{{ firmware.upload_date }}</td>
+                <td>
+                    {% if firmware.is_active %}
+                        <span class="badge bg-success">{% trans "Active" %}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{% trans "Inactive" %}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ firmware.file.url }}" class="btn btn-sm btn-info">{% trans "Download" %}</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">{% trans "No firmware files uploaded yet." %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

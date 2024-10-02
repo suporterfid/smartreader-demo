@@ -1,0 +1,26 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Update Firmware" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">{% trans "Update Firmware for Reader" %} {{ reader.serial_number }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="firmware" class="form-label">{% trans "Select Firmware Version" %}</label>
+            <select name="firmware" id="firmware" class="form-select" required>
+                <option value="">{% trans "Choose a firmware version" %}</option>
+                {% for firmware in firmwares %}
+                <option value="{{ firmware.id }}">{{ firmware.version }} - {{ firmware.description|truncatechars:50 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" onclick="return confirm('{% trans "Are you sure you want to update the firmware? This process cannot be undone." %}')">
+            {% trans "Update Firmware" %}
+        </button>
+        <a href="{% url 'reader_list' %}" class="btn btn-secondary">{% trans "Cancel" %}</a>
+    </form>
+</div>
+{% endblock %}
