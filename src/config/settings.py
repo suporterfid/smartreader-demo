@@ -13,7 +13,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 import sys
 import dj_database_url 
+from celery.schedules import crontab
+from datetime import timedelta
+from datetime import datetime
 from pathlib import Path
+from kombu import Exchange, Queue
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
 
@@ -65,7 +69,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    #'django_celery_beat',
+    #'django_celery_results',
     'app',
+    'mqtt_service',
 ]
 
 MIDDLEWARE = [
@@ -109,6 +116,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #     }
 # }
 
+print(f"DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
@@ -144,6 +153,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
+# TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
@@ -170,13 +180,89 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # MQTT Broker Configuration
 MQTT_PORT = os.environ.get('MQTT_PORT', 1883)
 MQTT_BROKER = os.environ.get('MQTT_BROKER', 'test.mosquitto.org')
+MQTT_TOPICS = [
+    ('smartreader/+/controlResult', 1),
+    ('smartreader/+/manageResult', 1),
+    ('smartreader/+/tagEvents', 1),
+    ('smartreader/+/event', 1),
+    ('smartreader/+/metrics', 1),
+    ('smartreader/+/lwt', 1),
 
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+    ]
+
+# CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://user:password@rabbitmq:5672//')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'django-db')
+CELERY_TASK_QUEUES = (
+    Queue('default', Exchange('default'), routing_key='default'),
+    Queue('scheduled_commands', Exchange('scheduled_commands'), routing_key='scheduled_commands'),
+    Queue('high_priority', Exchange('high_priority'), routing_key='high_priority'),
+    Queue('low_priority', Exchange('low_priority'), routing_key='low_priority'),
+)
+
+
+CELERY_TASK_ROUTES = {
+    'app.tasks.process_and_cleanup_commands': {'queue': 'high_priority'},
+    'app.tasks.execute_scheduled_commands_task': {'queue': 'scheduled_commands'},
+}
+
+CELERY_BEAT_SCHEDULE = {
+    'process_and_cleanup_every_10_seconds': {
+        'task': 'app.tasks.process_and_cleanup_commands',
+        'schedule': timedelta(seconds=10),
+    },
+    'execute_scheduled_commands_task_every_minute': {
+        'task': 'app.tasks.execute_scheduled_commands_task',
+        'schedule': timedelta(minutes=1),
+    },
+}
+
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_DEFAULT_EXCHANGE = "default"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "default"
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'reader_list'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'celery': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'app': {  # Your Django app name
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
+
+
+
+# Ensure the logs directory exists
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

@@ -1,0 +1,38 @@
+<!-- app/templates/app/command_detail.html -->
+{% extends 'app/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% trans "Command Details" %}</h1>
+    <dl class="row">
+        <dt class="col-sm-3">{% trans "Command ID" %}</dt>
+        <dd class="col-sm-9">{{ command.command_id }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Command Type" %}</dt>
+        <dd class="col-sm-9">{{ command.get_command_type_display }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Reader" %}</dt>
+        <dd class="col-sm-9">{{ command.reader.serial_number }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Command" %}</dt>
+        <dd class="col-sm-9">{{ command.command }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Details" %}</dt>
+        <dd class="col-sm-9">{{ command.details|default:"-" }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Status" %}</dt>
+        <dd class="col-sm-9">{{ command.get_status_display }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Date Sent" %}</dt>
+        <dd class="col-sm-9">{{ command.date_sent }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Updated At" %}</dt>
+        <dd class="col-sm-9">{{ command.updated_at }}</dd>
+        
+        <dt class="col-sm-3">{% trans "Response" %}</dt>
+        <dd class="col-sm-9">{{ command.response|default:"-" }}</dd>
+    </dl>
+    <a href="{% url 'command_history' %}" class="btn btn-secondary">{% trans "Back to Command History" %}</a>
+</div>
+{% endblock %}

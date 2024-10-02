@@ -123,19 +123,21 @@ def reader_edit(request, pk):
 #     return redirect('reader_list')
 
 def send_command(request, reader_id):
-    reader = get_object_or_404(Reader, id=reader_id)
-    command_type = request.POST.get('command_type')
-    if not command_type:
-        messages.error(request, _("No command type selected."))
-        return redirect('reader_list')
-    try:
-        command = store_command(reader, command_type)
-        messages.success(request, _("Command '%(command)s' queued for processing.") % {'command': command_type})
-    except Exception as e:
-        logger.error(f"Error queueing command: {str(e)}")
-        messages.error(request, _("An error occurred while processing the command."))
-    return redirect('reader_list')
+    if request.method == 'POST':
+        command_type = request.POST.get('command_type')
+        if command_type == 'mode':
+            return redirect('mode_command', reader_id=reader_id)
+        reader = get_object_or_404(Reader, id=reader_id)
 
+        if not command_type:
+            messages.error(request, _("No command type selected."))
+            return redirect('reader_list')
+        try:
+            command = store_command(reader, command_type)
+            messages.success(request, _("Command '%(command)s' queued for processing.") % {'command': command_type})
+        except Exception as e:
+            logger.error(f"Error queueing command: {str(e)}")
+            messages.error(request, _("An error occurred while processing the command."))
     return redirect('reader_list')
 
 @login_required
@@ -158,6 +160,7 @@ def mode_command(request, reader_id):
         form = ModeForm(request.POST)
         if form.is_valid():
             handle_mode_command(reader, form.cleaned_data)
+            messages.success(request, _('Mode command sent successfully.'))
             return redirect('reader_list')
     else:
         form = ModeForm()
@@ -191,6 +194,11 @@ def command_history(request):
         'reader_serial': reader_serial,
     }
     return render(request, 'app/command_history.html', context)
+
+@login_required
+def command_detail(request, command_id):
+    command = get_object_or_404(Command, id=command_id)
+    return render(request, 'app/command_detail.html', {'command': command})
 
 @login_required
 def detailed_status_event_list(request):

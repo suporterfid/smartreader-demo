@@ -46,10 +46,10 @@
                     <a href="{% url 'command_history' %}?reader={{ reader.serial_number }}" class="btn btn-info btn-sm">{% trans "History" %}</a>
                 </td>
                 <td>
-                    <form method="post" action="{% url 'send_command' reader.id %}">
+                    <form method="post" action="{% url 'send_command' reader.id %}" class="command-form">
                         {% csrf_token %}
                         <div class="form-group">
-                            <select name="command_type" class="form-control">
+                            <select name="command_type" class="form-control command-select">
                                 <option value="start">{% trans 'Start' %}</option>
                                 <option value="stop">{% trans 'Stop' %}</option>
                                 <option value="status-detailed">{% trans 'Status Detailed' %}</option>
@@ -82,4 +82,22 @@
         </ul>
     </nav>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const commandForms = document.querySelectorAll('.command-form');
+        commandForms.forEach(form => {
+            const select = form.querySelector('.command-select');
+            form.addEventListener('submit', function(e) {
+                if (select.value === 'mode') {
+                    e.preventDefault();
+                    const readerId = form.action.split('/').slice(-2, -1)[0];
+                    window.location.href = "{% url 'mode_command' 0 %}".replace('0', readerId);
+                }
+            });
+        });
+    });
+</script>
 {% endblock %}

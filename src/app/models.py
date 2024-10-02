@@ -29,6 +29,7 @@ class Command(models.Model):
         ('COMPLETED', _('Completed')),
         ('FAILED', _('Failed')),
     ]
+    command_id = models.CharField(max_length=50, default=None, blank=True, null=True, verbose_name=_('Command ID'))
     command_type = models.CharField(max_length=50, choices=COMMAND_TYPES, verbose_name=_('Command Type'))
     reader = models.ForeignKey(Reader, on_delete=models.CASCADE, verbose_name=_('Reader'))
     command = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Command'))
@@ -129,3 +130,25 @@ class ScheduledCommand(models.Model):
 
     def __str__(self):
         return f"{self.reader.serial_number} - {self.command_type} ({self.get_recurrence_display()})"
+    
+class TaskExecution(models.Model):
+    task_name = models.CharField(max_length=255)
+    is_executed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.task_name
+    
+    @classmethod
+    def reset_task_status(cls, task_name):
+        """
+        Resets the execution status of the task, allowing it to run again.
+        """
+        try:
+            task_exec = cls.objects.get(task_name=task_name)
+            task_exec.is_executed = False
+            task_exec.save()
+            print(f"Task {task_name} status reset to allow execution.")
+        except cls.DoesNotExist:
+            # If the task doesn't exist, create it with the default status
+            cls.objects.create(task_name=task_name, is_executed=False)
+            print(f"Task {task_name} created with reset status.")

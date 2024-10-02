@@ -1,22 +1,39 @@
-#tasks.py
+# app/tasks.py
 
+from __future__ import absolute_import, unicode_literals
 from django.utils import timezone
 import logging
+import threading
 from celery import shared_task
-from .models import Command
+from .models import Command, TaskExecution
 from .services import send_command_service
 from django.core.exceptions import ObjectDoesNotExist
 
+
 logger = logging.getLogger(__name__)
+
+# def silence_task_logs(func):
+#     @wraps(func)
+#     def wrapper(*args, **kwargs):
+#         logger = logging.getLogger('celery.task')
+#         original_level = logger.level
+#         logger.setLevel(logging.ERROR)  # Only log errors
+#         try:
+#             return func(*args, **kwargs)
+#         finally:
+#             logger.setLevel(original_level)
+#     return wrapper
 
 @shared_task
 def process_pending_commands():
+    print('>>>>>>>> process_pending_commands')
     pending_commands = Command.objects.filter(status='PENDING')
     for command in pending_commands:
+        print(f'command: {command.command}')
         command.status = 'PROCESSING'
         command.save()
         try:
-            success, message = send_command_service(None, command.reader.id, command.command_type)
+            success, message = send_command_service(None, command.reader.id, command.command_id, command.command, command.details)
             if success:
                 command.status = 'COMPLETED'
                 command.response = message
@@ -43,6 +60,7 @@ def cleanup_stale_commands():
 
 @shared_task
 def process_and_cleanup_commands():
+    print("Processing and cleaning up commands")
     process_pending_commands()
     cleanup_stale_commands()
         
@@ -55,7 +73,7 @@ def process_command(command_id):
         command.status = 'PROCESSING'
         command.save()
 
-        success, message = send_command_service(None, command.reader.id, command.command)
+        success, message = send_command_service(None, command.reader.id, command.command_id, command.command_type, command.details)
 
         if success:
             command.status = 'COMPLETED'
@@ -88,5 +106,44 @@ def process_command(command_id):
 
 @shared_task
 def execute_scheduled_commands_task():
+    print("Executing scheduled commands")
     from .services import execute_scheduled_commands
     execute_scheduled_commands()
+
+# @shared_task
+# def setup_periodic_tasks():
+#     logger.info('********STARTING PERIODIC TASKS SETUP********')
+#     try:
+#         # Set up Process and Cleanup Commands task (every 10 seconds)
+#         interval, _ = IntervalSchedule.objects.get_or_create(
+#             every=10,
+#             period=IntervalSchedule.SECONDS,
+#         )
+#         PeriodicTask.objects.get_or_create(
+#             name='Process and Cleanup Commands',
+#             task='app.tasks.process_and_cleanup_commands',
+#             interval=interval,
+#         )
+#         logger.info('Added periodic task: Process and Cleanup Commands (every 10 seconds)')
+        
+#         # Set up Execute Scheduled Commands task (every minute)
+#         crontab, _ = CrontabSchedule.objects.get_or_create(
+#             minute='*',
+#             hour='*',
+#             day_of_week='*',
+#             day_of_month='*',
+#             month_of_year='*',
+#         )
+#         PeriodicTask.objects.get_or_create(
+#             name='Execute Scheduled Commands',
+#             task='app.tasks.execute_scheduled_commands_task',
+#             crontab=crontab,
+#         )
+#         logger.info('Added periodic task: Execute Scheduled Commands (every minute)')
+        
+#         logger.info('********PERIODIC TASKS SETUP COMPLETE********')
+#     except Exception as e:
+#         logger.exception(f"An unexpected error occurred while setting up periodic tasks: {e}")
+    
+#     logger.info('********EXITING PERIODIC TASKS SETUP FUNCTION********')
+

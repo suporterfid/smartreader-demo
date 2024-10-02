@@ -5,6 +5,7 @@ import uuid
 from django.conf import settings
 from django.db.models import Q
 from django.core.paginator import Paginator
+from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 from django.contrib import messages
 from django.utils.translation import gettext as _
@@ -33,10 +34,40 @@ def get_readers(search_query, sort_by):
         Q(location__icontains=search_query)
     ).order_by(sort_by)
 
-def send_command_service(request, reader_id, command_type, payload=None):
-    
+def send_command_service(request, reader_id, command_id, command_type, payload=None):
     reader = get_object_or_404(Reader, pk=reader_id)
+    command_payload = None
+    try:
+        command = Command.objects.filter(
+            command_id=command_id,
+            reader__serial_number=reader.serial_number
+        ).latest('date_sent')
+        
+        # Check if command.details is a string and convert it to a dictionary if needed
+        if isinstance(command.details, str):
+            try:
+                command_payload = json.loads(command.details)  # Parse it to a dictionary
+            except json.JSONDecodeError:
+                # If it's not valid JSON, replace single quotes with double quotes
+                logger.warning("command.details is not valid JSON, trying to fix format")
+                try:
+                    command_payload = json.loads(command.details.replace("'", '"'))
+                except Exception as e:
+                    logger.warning("Invalid JSON stored in command details.")
+                    command_payload = {}
+        else:
+            command_payload = command.details  # It's already a dictionary 
+        logger.info(f'command payload from database: {command.details}')
+    except ObjectDoesNotExist:
+        command = None
+    except Exception as e:
+        command = None
+        logger.error(f"Error searching command: {str(e)}")
 
+    logger.info(f'Command payload to send: {command_payload}')
+    payload = command_payload
+    
+    print(f'send_command_service {command_type}')
     if not command_type:
         logger.error(f"No command type selected for reader {reader.serial_number}")
         return False, _("No command type selected.")
@@ -44,11 +75,10 @@ def send_command_service(request, reader_id, command_type, payload=None):
     if payload is None:
         payload = {}
 
-    command_id = str(uuid.uuid4())
     message = {
         'command': command_type,
         'command_id': command_id,
-        'payload': payload
+        'payload': payload  # payload should now be a proper dictionary
     }
 
     if command_type == 'status-detailed':
@@ -56,8 +86,13 @@ def send_command_service(request, reader_id, command_type, payload=None):
     else:
         topic = f'smartreader/{reader.serial_number}/control'
 
+    # Convert the message to a JSON string with proper formatting
+    message_json = json.dumps(message, indent=4)
+
     logger.info(f"Sending command '{command_id}' - '{command_type}' to reader '{reader.serial_number}' on topic '{topic}' message: {message}")
-    message_json = json.dumps(message)
+   
+    # The following block is unnecessary, as `message['payload']` is already a dictionary
+    # Therefore, we don't need to sanitize it again
 
     from .mqtt_client import get_mqtt_client
     client = get_mqtt_client()
@@ -65,7 +100,10 @@ def send_command_service(request, reader_id, command_type, payload=None):
     if not client.is_connected():
         logger.error("MQTT client is not connected. Attempting to reconnect...")
         try:
-            client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
+            mqtt_port = int(settings.MQTT_PORT)
+            mqtt_broker = settings.MQTT_BROKER
+            logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
+            client.connect(mqtt_broker, mqtt_port, 60)
             logger.info("Reconnected to MQTT broker")
         except Exception as e:
             logger.exception(f"Failed to reconnect to MQTT broker: {e}")
@@ -78,8 +116,38 @@ def send_command_service(request, reader_id, command_type, payload=None):
     except Exception as e:
         logger.exception(f"An exception occurred while publishing the message: {e}")
         return False, _("Failed to send command. Please try again.")
+
+# Recursive function to remove empty fields
+def remove_empty_fields(d):
+    if isinstance(d, dict):
+        return {k: remove_empty_fields(v) for k, v in d.items() if v not in ("", None, [], {})}
+    elif isinstance(d, list):
+        return [remove_empty_fields(v) for v in d if v not in ("", None, [], {})]
+    else:
+        return d
+
+def mode_clean_up(message_json):
+    # Remove any empty fields from the data
+    message_json = remove_empty_fields(message_json)
     
-def send_command(reader, command_type, payload=None):
+    # Access rssiFilter inside the payload, not at the root level
+    payload = message_json.get('payload', {})
+    rssi_filter = payload.get('rssiFilter', {})
+    
+    # Set the threshold to -90 if it's empty or not present
+    if not rssi_filter.get('threshold'):
+        rssi_filter['threshold'] = -92
+    
+    # Update the rssiFilter in the payload
+    payload['rssiFilter'] = rssi_filter
+    message_json['payload'] = payload
+    
+    # Log the cleaned-up message
+    logger.info(f'Message after clean-up: {message_json}')
+    
+    return message_json
+    
+def send_command(reader, command_id, command_type, payload=None):
     if not command_type:
         logger.error(f"No command type selected for reader {reader.serial_number}")
         return
@@ -87,7 +155,6 @@ def send_command(reader, command_type, payload=None):
     if not payload:
         payload = {}
 
-    command_id = str(uuid.uuid4())
     message = {
         'command': command_type,
         'command_id': command_id,
@@ -101,8 +168,16 @@ def send_command(reader, command_type, payload=None):
 
     logger.info(f"Sending command '{command_type}' to reader '{reader.serial_number}' with payload: {payload}")
 
-    message_json = json.dumps(message)
+    # message_json = json.dumps(message)
+    message_json = message
     
+    # if command_type == 'mode':
+    #     # Call mode-specific clean-up function
+    #     message_json = mode_clean_up(message_json)
+
+    #     if not isinstance(message_json, str):
+    #         message_json = json.dumps(message_json)
+
     from .mqtt_client import get_mqtt_client
     client = get_mqtt_client()
 
@@ -145,14 +220,36 @@ def handle_mode_command(reader, data):
             'threshold': data.get('rssi_threshold', '')
         }
     }
-    return send_command(reader, 'mode', payload)
+    # Remove any empty fields from the data
+    payload = remove_empty_fields(payload)
+    
+    # Access rssiFilter inside the payload, not at the root level  
+    rssi_filter = payload.get('rssiFilter', {})
+    
+    # Set the threshold to -90 if it's empty or not present
+    if not rssi_filter.get('threshold'):
+        rssi_filter['threshold'] = -92
+    
+    # Update the rssiFilter in the payload
+    payload['rssiFilter'] = rssi_filter
+    
+    # Log the cleaned-up message
+    logger.info(f'Payload after clean-up: {payload}')
 
-def store_command(reader, command_type):
+    # command = store_command(reader, 'mode', payload)
+    # return send_command(reader, command.command_id, command.command_type, payload)
+    # message_json = json.dumps(payload)
+    return store_command(reader, 'mode', payload)
+
+def store_command(reader, command_type, details=None):
     try:
+        command_id = str(uuid.uuid4())
         command = Command.objects.create(
+            command_id = command_id,
             reader=reader,
             command=command_type,
-            status='PENDING'
+            status='PENDING',
+            details=details
         )
         logger.info(f"Command stored: {command}")
         return command
@@ -160,13 +257,13 @@ def store_command(reader, command_type):
         logger.error(f"Error storing command: {str(e)}")
         raise
 
-def update_command_status(reader_serial, command_type, status, response):
+def update_command_status(command_id, reader_serial, command_type, status, response):
     try:
         command = Command.objects.filter(
+            command_id=command_id,
             reader__serial_number=reader_serial,
-            command=command_type,
-            status='PROCESSING'
-        ).latest('created_at')
+            command=command_type
+        ).latest('date_sent')
         
         command.status = status
         command.response = response
@@ -244,11 +341,10 @@ def store_detailed_status_event(reader, payload):
         non_antenna_details = {"mqtt_status": mqtt_status}
         event_type = "mqtt-status"
         logger.info(f"Processing MQTT status event ({mqtt_status}) for reader {reader.serial_number}")
-    elif "status" in payload:
-        status = payload.get("status", "")
-        non_antenna_details = {"status": status}
-        event_type = "status"
-        logger.info(f"Processing status event ({status}) for reader {reader.serial_number}")
+    elif event_type == "status" or event_type == "status-detailed":
+        # 1) Store all non-antenna items and remove "eventType"
+        non_antenna_details = {key: value for key, value in payload.items() if 'antenna' not in key and key != "eventType"}
+        logger.info(f"Processing status event ({event_type}) for reader {reader.serial_number}")
     else:
         non_antenna_details = {k: v for k, v in payload.items() if 'antenna' not in k.lower()}
         logger.info(f"Processing generic event for reader {reader.serial_number}")
@@ -366,7 +462,7 @@ def execute_scheduled_commands():
     for command in scheduled_commands:
         try:
             from tasks import process_command
-            process_command.delay(command.reader.id, command.command_type)
+            process_command.delay(command.reader.id, command.command)
             logger.info(f"Executed scheduled command: {command}")
             
             if command.recurrence == 'ONCE':
