@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.core.validators import FileExtensionValidator
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
+import secrets
 
 # Create your models here.
 
@@ -191,3 +192,21 @@ class FirmwareUpdateStatus(models.Model):
 
     def __str__(self):
         return f"Firmware update for {self.reader.serial_number}: {self.status}"
+    
+class APIKey(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
+    key = models.CharField(max_length=40, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        return super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_key():
+        return secrets.token_hex(20)  # Generate a 40 character hex string
+
+    def __str__(self):
+        return f"{self.user.username}'s API Key"

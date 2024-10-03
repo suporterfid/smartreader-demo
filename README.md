@@ -41,7 +41,66 @@ source venv/bin/activate  # On Windows use `venv\Scriptsctivate`
 pip install -r requirements.txt
 ```
 
-### 4. Setup Environment Variables
+### 4. Local HTTPS Setup
+
+For local development with HTTPS, we use self-signed SSL certificates. Follow these steps to generate the certificates using Docker:
+
+1. Ensure you're in the project root directory.
+
+2. Create a directory for the SSL certificates:
+   ```bash
+   mkdir -p ssl
+   ```
+
+3. Run the following command to generate the self-signed certificates using Docker:
+   ```bash
+   docker run --rm -v ${PWD}/ssl:/certificates --entrypoint openssl alpine/openssl \
+   req -x509 -nodes -days 365 -newkey rsa:2048 \
+   -keyout /certificates/localhost.key -out /certificates/localhost.crt \
+   -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN=localhost"
+   ```
+
+   This command does the following:
+   - Uses the `alpine/openssl` Docker image to run OpenSSL.
+   - Mounts the local `ssl` directory to `/certificates` in the container.
+   - Generates a self-signed certificate valid for 365 days.
+   - Creates `localhost.key` (private key) and `localhost.crt` (certificate) in the `ssl` directory.
+   - Sets default values for certificate information (you can modify these as needed).
+
+4. Verify that the certificates were created:
+   ```bash
+   ls ssl
+   ```
+   You should see `localhost.key` and `localhost.crt` in the output.
+
+5. Ensure that your `nginx.conf` file is configured to use these certificates:
+   ```nginx
+   ssl_certificate /etc/nginx/ssl/localhost.crt;
+   ssl_certificate_key /etc/nginx/ssl/localhost.key;
+   ```
+
+6. Update your `docker-compose.yml` file to mount the `ssl` directory to the Nginx container:
+   ```yaml
+   nginx:
+     # ... other configurations ...
+     volumes:
+       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+       - ./ssl:/etc/nginx/ssl:ro
+   ```
+
+7. Restart your Docker services:
+   ```bash
+   docker-compose down
+   docker-compose up -d
+   ```
+
+Now your local development environment should be set up with HTTPS using self-signed certificates.
+
+Note: Browsers will show a security warning when accessing your site because the certificate is self-signed. This is normal for local development and doesn't affect the encryption of data.
+
+Remember to add the `ssl/` directory to your `.gitignore` file to avoid committing the certificates to your repository.
+
+### 5. Setup Environment Variables
 
 Create a `.env` file in the project root and set up the following environment variables:
 
@@ -57,7 +116,7 @@ MQTT_BROKER=test.mosquitto.org
 ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
-### 5. Configure MQTT Broker
+### 6. Configure MQTT Broker
 
 You can use the public test broker from Mosquitto (`test.mosquitto.org`). Alternatively, you can set up a local broker using Docker:
 
@@ -65,7 +124,7 @@ You can use the public test broker from Mosquitto (`test.mosquitto.org`). Altern
 docker run -it -p 1883:1883 -p 9001:9001 eclipse-mosquitto
 ```
 
-### 6. Migrate Database
+### 7. Migrate Database
 
 ```bash
 python manage.py migrate
@@ -76,7 +135,7 @@ docker-compose exec web python manage.py migrate
 ```
 
 
-### 7. Create a Superuser
+### 8. Create a Superuser
 
 ```bash
 python manage.py createsuperuser
@@ -86,7 +145,7 @@ or
 docker-compose exec web python manage.py shell -c "from django.contrib.auth.models import User; User.objects.create_superuser('$superuser', '$email', '$password')"
 ```
 
-### 8. Collect Static Files (Optional for production)
+### 9. Collect Static Files (Optional for production)
 
 ```bash
 python manage.py collectstatic
@@ -127,6 +186,46 @@ The following MQTT topics are used to communicate with the R700 readers:
    - **Purpose:** To detect disconnections or failures from the reader.
 
 Each reader is identified by its serial number, and this number must be properly configured when communicating with readers via MQTT. Ensure the correct serial number is being used for each reader.
+
+## API Access
+
+The SmartReader demo application now provides a RESTful API for integrating with other systems. The API allows you to:
+
+- List and retrieve reader information
+- Access tag event data
+- Send commands to readers
+
+For detailed API documentation, please visit the `/api/docs/` endpoint in the application.
+
+To use the API, you need to obtain an API key. Please contact the system administrator to get your API key.
+
+## Generating and Using API Keys
+
+To use the API, you need to generate an API key. Follow these steps to create and use an API key:
+
+1. Ensure you have a user account in the system. If not, create one using the Django admin interface or the `createsuperuser` command.
+
+2. Generate an API key for your user by running the following command:
+
+   ```bash
+   docker-compose exec web python manage.py generate_api_key your_username
+   ```
+
+   Replace `your_username` with your actual username.
+
+3. The command will output your API key. Make sure to copy and save this key securely.
+
+4. To use the API key in requests, include it in the `X-API-Key` header. For example:
+
+   ```bash
+   curl -H "X-API-Key: your_api_key_here" https://localhost/api/readers/
+   ```
+
+   Replace `your_api_key_here` with the actual API key you generated.
+
+Remember to keep your API key secure and don't share it publicly. Each user should have their own unique API key.
+
+Note: If you need to regenerate an API key for a user, simply run the `generate_api_key` command again with the same username. This will create a new key, invalidating the old one.
 
 ## Running the Application
 

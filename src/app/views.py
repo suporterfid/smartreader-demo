@@ -372,5 +372,8 @@ def firmware_update(request, reader_id):
     
     return render(request, 'app/firmware_update.html', {'reader': reader, 'firmwares': firmwares})
 
+def api_docs(request):
+    return render(request, 'app/api_docs.html')
+
 def home(request):
     return redirect('reader_list')

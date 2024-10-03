@@ -1,0 +1,52 @@
+{% extends 'app/base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% trans "API Documentation" %}</h1>
+    
+    <h2>{% trans "API Examples" %}</h2>
+    <p>{% trans "For examples of how to use this API with curl, please see our " %}<a href="https://github.com/yourusername/smartreader-demo/blob/main/API_EXAMPLES.md">{% trans "API Examples document" %}</a>.</p>
+
+    <h2>{% trans "Authentication" %}</h2>
+    <p>{% trans "All API requests must include an 'X-API-Key' header with a valid API key." %}</p>
+    
+    <h2>{% trans "Endpoints" %}</h2>
+    
+    <h3>GET /api/readers/</h3>
+    <p>{% trans "List all readers. Supports pagination and filtering by serial number." %}</p>
+    <h4>{% trans "Query Parameters" %}:</h4>
+    <ul>
+        <li>page: {% trans "Page number for pagination" %}</li>
+        <li>page_size: {% trans "Number of items per page" %}</li>
+        <li>serial_number: {% trans "Filter readers by serial number" %}</li>
+    </ul>
+    
+    <h3>GET /api/readers/{serial_number}/</h3>
+    <p>{% trans "Get details for a specific reader." %}</p>
+    
+    <h3>GET /api/tag-events/</h3>
+    <p>{% trans "List tag events. Supports pagination and filtering by EPC and reader serial number." %}</p>
+    <h4>{% trans "Query Parameters" %}:</h4>
+    <ul>
+        <li>page: {% trans "Page number for pagination" %}</li>
+        <li>page_size: {% trans "Number of items per page" %}</li>
+        <li>epc: {% trans "Filter events by EPC" %}</li>
+        <li>reader_serial: {% trans "Filter events by reader serial number" %}</li>
+    </ul>
+    
+    <h3>POST /api/commands/</h3>
+    <p>{% trans "Send a command to a reader." %}</p>
+    <h4>{% trans "Request Body" %}:</h4>
+    <pre>
+    {
+        "reader_serial_number": "READER001",
+        "command_type": "start",
+        "details": {}
+    }
+    </pre>
+    
+    <h2>{% trans "Rate Limiting" %}</h2>
+    <p>{% trans "API requests are limited to 1000 per day per API key." %}</p>
+</div>
+{% endblock %}

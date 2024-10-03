@@ -38,6 +38,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 ALLOWED_HOSTS = ['localhost','127.0.0.1','smartreader-demo.fly.dev', '66.241.124.48']
 
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
 # Redirect all HTTP traffic to HTTPS
 # UNCOMMENT FOR PRODUCTION DEPLOYMENT
 # SECURE_SSL_REDIRECT = True
@@ -71,6 +75,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     #'django_celery_beat',
     #'django_celery_results',
+    'rest_framework',
     'app',
     'mqtt_service',
 ]
@@ -83,6 +88,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'app.middleware.APIKeyMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -145,6 +151,21 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day'
+    },
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'app.authentication.APIKeyAuthentication',
+    ],
+
+}
 
 
 # Internationalization
@@ -243,6 +264,12 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
         },
+        # 'file': {
+        #     'level': 'DEBUG',
+        #     'class': 'logging.FileHandler',
+        #     'filename': 'logs/debug.log',
+        #     'formatter': 'verbose',
+        # },
     },
     'root': {
         'handlers': ['console'],
@@ -253,6 +280,10 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
+        },
+        'app.api_views': {
+            'handlers': ['console'],
+            'level': 'INFO',
         },
         'celery': {
             'handlers': ['console'],
