@@ -70,7 +70,7 @@ class CommandCreateView(generics.CreateAPIView):
 
             # Read values from the serializer
             reader_serial_number = serializer.validated_data['reader_serial_number']
-            command_type = serializer.validated_data['command_type']
+            command_type = serializer.validated_data['command']
             details = serializer.validated_data.get('details')
             # Log the received data
             logger.info(f"Received command: type={command_type}, reader={reader_serial_number}, details={details}")
@@ -106,3 +106,32 @@ class CommandCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         return serializer.save()
+    
+class CommandDetailView(generics.RetrieveAPIView):
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = CommandSerializer
+    lookup_field = 'command_id'
+
+    def get_queryset(self):
+        return Command.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            
+            data = serializer.data
+            
+            # Add reader_serial_number to the response
+            data['reader_serial_number'] = instance.reader.serial_number
+
+            response_data = {
+                instance.command_id: data
+            }
+            return Response(response_data)
+        except Command.DoesNotExist:
+            return Response({'error': _('Command not found')}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"CommandDetailView - Error retrieving command: {str(e)}")
+            return Response({'error': _('Failed to retrieve command')}, status=status.HTTP_400_BAD_REQUEST)

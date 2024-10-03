@@ -20,7 +20,8 @@ from .services import store_command
 
 class CommandSerializer(serializers.ModelSerializer):
     reader_serial_number = serializers.CharField(write_only=True)
-    command_type = serializers.CharField()
+    # command_type = serializers.CharField()
+    command_type = serializers.CharField(source='command') 
     details = serializers.JSONField(required=False)
     
     class Meta:
@@ -35,16 +36,18 @@ class CommandSerializer(serializers.ModelSerializer):
         except Reader.DoesNotExist:
             raise serializers.ValidationError("Reader with this serial number does not exist.")
         
-        command_type = validated_data.get('command_type')
+        # command_type = validated_data.get('command_type')
+        command = validated_data.pop('command')
         details = validated_data.get('details')
         
-        return store_command(reader, command_type, details)
+        return store_command(reader, command, details)
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         representation['reader_serial_number'] = instance.reader.serial_number
-        representation['command_type'] = instance.command_type
+        representation['command_type'] = instance.command
         representation['details'] = instance.details
+        representation['status'] = instance.status
         return representation
 
     def validate_reader_serial_number(self, value):
