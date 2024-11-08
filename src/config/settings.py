@@ -265,6 +265,11 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'app.tasks.execute_scheduled_commands_task',
         'schedule': timedelta(minutes=1),
     },
+    'process_pending_commands': {
+        'task': 'app.tasks.process_pending_commands',
+        'schedule': timedelta(seconds=30),  # Run every 30 seconds
+        'options': {'queue': 'high_priority'}
+    },
 }
 
 CELERY_TASK_DEFAULT_QUEUE = "default"
