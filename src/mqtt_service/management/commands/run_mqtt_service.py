@@ -1,4 +1,5 @@
 # mqtt_service/management/commands/run_mqtt_service.py
+import os
 import logging
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -56,7 +57,8 @@ class Command(BaseCommand):
         while True:
             try:
                 # Get pending commands
-                response = requests.get(f"{DJANGO_API_URL}/api/commands/pending/")
+                headers = {'X-API-Key': os.environ.get('API_KEY')}
+                response = requests.get(f"{DJANGO_API_URL}/api/commands/pending/", headers=headers)
                 if response.status_code == 200:
                     commands = response.json().get('commands', [])
                     
@@ -99,6 +101,7 @@ class Command(BaseCommand):
                                     
                                 requests.put(
                                     f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
+                                    headers=headers,
                                     json=status_data
                                 )
                                 
