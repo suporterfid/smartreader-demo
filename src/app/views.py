@@ -422,3 +422,42 @@ class ProcessMQTTMessageView(APIView):
                 {'error': 'Failed to process message'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class CommandStatusUpdateView(APIView):
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def put(self, request, command_id):
+        try:
+            command = get_object_or_404(Command, command_id=command_id)
+            new_status = request.data.get('status')
+            response_message = request.data.get('response', '')
+            
+            if not new_status:
+                return Response(
+                    {'error': 'Status is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            if new_status not in ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']:
+                return Response(
+                    {'error': 'Invalid status value'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            command.status = new_status
+            command.response = response_message
+            command.save()
+            
+            return Response({
+                'command_id': command.command_id,
+                'status': command.status,
+                'response': command.response
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating command status: {str(e)}")
+            return Response(
+                {'error': 'Failed to update command status'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

@@ -40,5 +40,6 @@ urlpatterns = [
 
     path('api/docs/', views.api_docs, name='api_docs'),
     path('api/commands/pending/', views.PendingCommandsView.as_view(), name='pending_commands'),
+    path('api/commands/<str:command_id>/status/', views.CommandStatusUpdateView.as_view(), name='command_status_update'),
     # Other URL patterns
 ]
