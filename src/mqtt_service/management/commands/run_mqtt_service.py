@@ -2,6 +2,7 @@
 import logging
 from django.conf import settings
 from django.core.management.base import BaseCommand
+import requests
 from mqtt_service.mqtt_manager import mqtt_manager
 
 logger = logging.getLogger(__name__)
