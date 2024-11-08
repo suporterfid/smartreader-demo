@@ -174,38 +174,81 @@ services:
       - app_network
     restart: unless-stopped
 
-  mqtt_service:
+  dapr-mqtt-publisher:
     build: .
     command: python manage.py run_mqtt_service
     volumes:
       - ./src:/app
-      #- /etc/localtime:/etc/localtime:ro #Docker running on Linux
-      #- /etc/timezone:/etc/timezone:ro   #Docker running on Linux
+      - ./components:/components
     depends_on:
       - mqtt
       - rabbitmq
       - db
       - redis
     environment:
+      - APP_PORT=3500
+      - DAPR_HTTP_PORT=3501
+      - APP_ID=mqtt-publisher
+      - COMPONENTS_PATH=/components
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
       - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_MAX_MESSAGE_SIZE=${MQTT_MAX_MESSAGE_SIZE}
-      - MQTT_MAX_RECONNECT_ATTEMPTS=${MQTT_MAX_RECONNECT_ATTEMPTS}
-      - MQTT_RECONNECT_DELAY=${MQTT_RECONNECT_DELAY}
-      - MQTT_KEEPALIVE=${MQTT_KEEPALIVE}
-      - MQTT_USE_TLS=${MQTT_USE_TLS}
-      - MQTT_QOS=${MQTT_QOS}
-      - MQTT_RETAIN=${MQTT_RETAIN}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
-      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}
     networks:
       - app_network
     restart: unless-stopped
+
+  dapr-sidecar-publisher:
+    image: "daprio/daprd:edge"
+    command: ["./daprd",
+     "-app-id", "mqtt-publisher",
+     "-app-port", "3500",
+     "-components-path", "/components"
+    ]
+    volumes:
+      - ./components:/components
+    depends_on:
+      - dapr-mqtt-publisher
+    network_mode: "service:dapr-mqtt-publisher"
+
+  dapr-mqtt-subscriber:
+    build: .
+    command: python manage.py run_mqtt_subscriber
+    volumes:
+      - ./src:/app
+      - ./components:/components
+    depends_on:
+      - mqtt
+      - rabbitmq
+      - db
+      - redis
+    environment:
+      - APP_PORT=3502
+      - DAPR_HTTP_PORT=3503
+      - APP_ID=mqtt-subscriber
+      - COMPONENTS_PATH=/components
+      - TZ=UTC
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  dapr-sidecar-subscriber:
+    image: "daprio/daprd:edge"
+    command: ["./daprd",
+     "-app-id", "mqtt-subscriber",
+     "-app-port", "3502",
+     "-components-path", "/components"
+    ]
+    volumes:
+      - ./components:/components
+    depends_on:
+      - dapr-mqtt-subscriber
+    network_mode: "service:dapr-mqtt-subscriber"
   
   # flower:
   #   build: .

@@ -580,3 +580,79 @@ try {
 } catch {
     Write-Host "Error: $_"
 }
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-pubsub
+spec:
+  type: pubsub.mqtt
+  version: v1
+  metadata:
+  - name: url
+    value: "mqtt://mqtt:1883"
+  - name: qos
+    value: 1
+  - name: retain
+    value: "false"
+  - name: cleanSession
+    value: "true"
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: redis:6379
+  - name: redisPassword
+    value: ""
+  - name: actorStateStore
+    value: "true"
+from django.core.management.base import BaseCommand
+import logging
+import json
+import requests
+from django.conf import settings
+import time
+
+logger = logging.getLogger(__name__)
+
+class Command(BaseCommand):
+    help = 'Runs the MQTT subscriber service using Dapr'
+
+    def handle(self, *args, **options):
+        from django.core.wsgi import get_wsgi_application
+        application = get_wsgi_application()
+
+        logger.info("Starting MQTT subscriber service...")
+        
+        # Subscribe to MQTT topics via Dapr
+        DAPR_HTTP_PORT = 3503
+        
+        # Subscribe to topics
+        subscription = {
+            "pubsubname": "mqtt-pubsub",
+            "topic": "smartreader/+/controlResult",
+            "route": "/api/mqtt/process/"
+        }
+        
+        try:
+            response = requests.post(
+                f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
+                json=[subscription]
+            )
+            if response.status_code == 200:
+                logger.info("Successfully subscribed to MQTT topics")
+            else:
+                logger.error(f"Failed to subscribe: {response.status_code}")
+                return
+                
+        except Exception as e:
+            logger.error(f"Error subscribing to topics: {e}")
+            return
+
+        # Keep the service running
+        while True:
+            time.sleep(1)
