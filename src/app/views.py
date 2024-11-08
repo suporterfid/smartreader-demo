@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
 from app.authentication import APIKeyAuthentication
 
 from app.tasks import process_command
@@ -420,6 +421,35 @@ class ProcessMQTTMessageView(APIView):
         else:
             return Response(
                 {'error': 'Failed to process message'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class CleanupStaleCommandsView(APIView):
+    """API endpoint to cleanup stale commands"""
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            timeout = timezone.now() - timezone.timedelta(seconds=30)
+            stale_commands = Command.objects.filter(status='PROCESSING', updated_at__lt=timeout)
+            count = stale_commands.count()
+            
+            for command in stale_commands:
+                command.status = 'FAILED'
+                command.response = "Command processing timed out"
+                command.save()
+                logger.warning(f"Command {command.id} timed out and marked as failed")
+            
+            return Response({
+                'status': 'success',
+                'message': f'Cleaned up {count} stale commands',
+                'cleaned_count': count
+            })
+        except Exception as e:
+            logger.error(f"Error cleaning up stale commands: {str(e)}")
+            return Response(
+                {'error': 'Failed to cleanup stale commands'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
