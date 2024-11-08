@@ -24,29 +24,54 @@ logger = logging.getLogger(__name__)
 #             logger.setLevel(original_level)
 #     return wrapper
 
-@shared_task
-def process_pending_commands():
-    print('>>>>>>>> process_pending_commands')
+@shared_task(bind=True, max_retries=3)
+def process_pending_commands(self):
+    """Process all pending commands and update their status"""
+    logger.info("Starting to process pending commands")
     pending_commands = Command.objects.filter(status='PENDING')
+    processed_count = 0
+    
     for command in pending_commands:
-        print(f'command: {command.command}')
+        logger.info(f"Processing command: {command.command_id} - {command.command}")
         command.status = 'PROCESSING'
         command.save()
+        
         try:
-            success, message = send_command_service(None, command.reader.id, command.command_id, command.command, command.details)
+            success, message = send_command_service(
+                None, 
+                command.reader.id, 
+                command.command_id, 
+                command.command, 
+                command.details
+            )
+            
             if success:
                 command.status = 'COMPLETED'
                 command.response = message
+                processed_count += 1
+                logger.info(f"Successfully processed command {command.command_id}")
             else:
                 command.status = 'FAILED'
                 command.response = message
+                logger.error(f"Failed to process command {command.command_id}: {message}")
+                
         except Exception as e:
-            logger.error(f"Error processing command {command.id}: {str(e)}")
+            logger.error(f"Error processing command {command.command_id}: {str(e)}")
             command.status = 'FAILED'
             command.response = f"Unexpected error: {str(e)}"
+            
+            # Retry the task if there's an exception
+            try:
+                self.retry(countdown=60)  # Retry after 1 minute
+            except self.MaxRetriesExceededError:
+                logger.error(f"Max retries exceeded for command {command.command_id}")
+                
         finally:
             command.updated_at = timezone.now()
             command.save()
+    
+    logger.info(f"Finished processing commands. Successfully processed: {processed_count}/{pending_commands.count()}")
+    return processed_count
 
 @shared_task
 def cleanup_stale_commands():

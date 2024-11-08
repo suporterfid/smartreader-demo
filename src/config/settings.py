@@ -253,6 +253,7 @@ CELERY_TASK_QUEUES = (
 CELERY_TASK_ROUTES = {
     'app.tasks.process_and_cleanup_commands': {'queue': 'high_priority'},
     'app.tasks.execute_scheduled_commands_task': {'queue': 'scheduled_commands'},
+    'app.tasks.process_pending_commands': {'queue': 'high_priority'},
 }
 
 CELERY_BEAT_SCHEDULE = {
