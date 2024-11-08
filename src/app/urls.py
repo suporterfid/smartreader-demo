@@ -3,6 +3,7 @@ from . import views
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
+    path('api/mqtt/process/', views.ProcessMQTTMessageView.as_view(), name='process_mqtt_message'),
     path('', views.home, name='home'),
     path('readers/', views.reader_list, name='reader_list'),
     path('readers/add/', views.reader_create, name='reader_create'),
