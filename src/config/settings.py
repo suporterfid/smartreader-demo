@@ -37,7 +37,7 @@ DEBUG = True
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-ALLOWED_HOSTS = ['localhost','127.0.0.1','smartreader-demo.fly.dev', '66.241.124.48']
+ALLOWED_HOSTS = ['web','localhost','127.0.0.1']
 
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True

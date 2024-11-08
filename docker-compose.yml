@@ -139,41 +139,41 @@ services:
       - app_network
     restart: unless-stopped
   
-  celery-beat:
-    build: .
-    # command: celery -A config beat -l debug
-    command: sh -c './wait-for-it.sh rabbitmq:5672 -t 120 -- celery -A config beat -l debug'
-    volumes:
-      - ./src:/app
-      #- /etc/localtime:/etc/localtime:ro #Docker running on Linux
-      #- /etc/timezone:/etc/timezone:ro   #Docker running on Linux
-    working_dir: /app
-    depends_on:
-      - db
-      - rabbitmq
-      - redis
-      - celery
-    environment:
-      - TZ=UTC
-      - MQTT_PORT=${MQTT_PORT}
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_MAX_MESSAGE_SIZE=${MQTT_MAX_MESSAGE_SIZE}
-      - MQTT_MAX_RECONNECT_ATTEMPTS=${MQTT_MAX_RECONNECT_ATTEMPTS}
-      - MQTT_RECONNECT_DELAY=${MQTT_RECONNECT_DELAY}
-      - MQTT_KEEPALIVE=${MQTT_KEEPALIVE}
-      - MQTT_USE_TLS=${MQTT_USE_TLS}
-      - MQTT_QOS=${MQTT_QOS}
-      - MQTT_RETAIN=${MQTT_RETAIN}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-      - DATABASE_URL=${DATABASE_URL}
-      - CELERY_LOG_LEVEL=DEBUG
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
-      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}  
-    networks:
-      - app_network
-    restart: unless-stopped
+  # celery-beat:
+  #   build: .
+  #   # command: celery -A config beat -l debug
+  #   command: sh -c './wait-for-it.sh rabbitmq:5672 -t 120 -- celery -A config beat -l debug'
+  #   volumes:
+  #     - ./src:/app
+  #     #- /etc/localtime:/etc/localtime:ro #Docker running on Linux
+  #     #- /etc/timezone:/etc/timezone:ro   #Docker running on Linux
+  #   working_dir: /app
+  #   depends_on:
+  #     - db
+  #     - rabbitmq
+  #     - redis
+  #     - celery
+  #   environment:
+  #     - TZ=UTC
+  #     - MQTT_PORT=${MQTT_PORT}
+  #     - MQTT_BROKER=${MQTT_BROKER}
+  #     - MQTT_MAX_MESSAGE_SIZE=${MQTT_MAX_MESSAGE_SIZE}
+  #     - MQTT_MAX_RECONNECT_ATTEMPTS=${MQTT_MAX_RECONNECT_ATTEMPTS}
+  #     - MQTT_RECONNECT_DELAY=${MQTT_RECONNECT_DELAY}
+  #     - MQTT_KEEPALIVE=${MQTT_KEEPALIVE}
+  #     - MQTT_USE_TLS=${MQTT_USE_TLS}
+  #     - MQTT_QOS=${MQTT_QOS}
+  #     - MQTT_RETAIN=${MQTT_RETAIN}
+  #     - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+  #     - DATABASE_URL=${DATABASE_URL}
+  #     - CELERY_LOG_LEVEL=DEBUG
+  #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+  #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+  #     - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
+  #     - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}  
+  #   networks:
+  #     - app_network
+  #   restart: unless-stopped
 
   dapr-mqtt-publisher:
     build: .
