@@ -42,5 +42,6 @@ urlpatterns = [
     path('api/commands/pending/', views.PendingCommandsView.as_view(), name='pending_commands'),
     path('api/commands/<str:command_id>/status/', views.CommandStatusUpdateView.as_view(), name='command_status_update'),
     path('api/commands/cleanup-stale/', views.CleanupStaleCommandsView.as_view(), name='cleanup_stale_commands'),
+    path('api/mqtt/publish/', views.PublishMQTTMessageView.as_view(), name='publish_mqtt_message'),
     # Other URL patterns
 ]

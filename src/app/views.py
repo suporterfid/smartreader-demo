@@ -453,6 +453,43 @@ class CleanupStaleCommandsView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+class PublishMQTTMessageView(APIView):
+    """API endpoint to publish MQTT messages"""
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            topic = request.data.get('topic')
+            payload = request.data.get('payload')
+            
+            if not topic or not payload:
+                return Response(
+                    {'error': 'Both topic and payload are required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            from .mqtt_client import publish_message
+            success = publish_message(topic, payload)
+            
+            if success:
+                return Response({
+                    'status': 'success',
+                    'message': f'Message published to topic {topic}'
+                })
+            else:
+                return Response(
+                    {'error': 'Failed to publish message'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except Exception as e:
+            logger.error(f"Error publishing MQTT message: {str(e)}")
+            return Response(
+                {'error': 'Failed to publish message'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class CommandStatusUpdateView(APIView):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
