@@ -28,7 +28,12 @@ class Command(BaseCommand):
             subscriptions.append({
                 "pubsubname": "mqtt-pubsub",
                 "topic": topic,
-                "route": "/api/mqtt/process/"
+                "route": "/api/mqtt/process/",
+                "metadata": {
+                    "headers": {
+                        "X-API-Key": os.environ.get('API_KEY')
+                    }
+                }
             })
 
         try:
