@@ -528,58 +528,6 @@ class CommandStatusUpdateView(APIView):
                 {'error': 'Failed to update command status'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-# PowerShell script to test API endpoints
-
-param(
-    [Parameter(Mandatory=$true)]
-    [string]$ApiKey,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$BaseUrl = "http://localhost:8000"
-)
-
-$headers = @{
-    "Authorization" = "Api-Key $ApiKey"
-    "Content-Type" = "application/json"
-}
-
-# Test MQTT publish endpoint
-$body = @{
-    topic = "smartreader/test/control"
-    payload = @{
-        command = "status"
-        command_id = "test-123"
-    }
-} | ConvertTo-Json
-
-Write-Host "Testing MQTT publish endpoint..."
-try {
-    $response = Invoke-WebRequest -Method POST -Uri "$BaseUrl/api/mqtt/publish/" -Headers $headers -Body $body
-    Write-Host "Success! Status code: $($response.StatusCode)"
-    Write-Host "Response: $($response.Content)"
-} catch {
-    Write-Host "Error: $_"
-}
-
-# Test cleanup stale commands endpoint
-Write-Host "`nTesting cleanup stale commands endpoint..."
-try {
-    $response = Invoke-WebRequest -Method POST -Uri "$BaseUrl/api/commands/cleanup-stale/" -Headers $headers
-    Write-Host "Success! Status code: $($response.StatusCode)"
-    Write-Host "Response: $($response.Content)"
-} catch {
-    Write-Host "Error: $_"
-}
-
-# Test get pending commands endpoint
-Write-Host "`nTesting get pending commands endpoint..."
-try {
-    $response = Invoke-WebRequest -Method GET -Uri "$BaseUrl/api/commands/pending/" -Headers $headers
-    Write-Host "Success! Status code: $($response.StatusCode)"
-    Write-Host "Response: $($response.Content)"
-} catch {
-    Write-Host "Error: $_"
-}
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
@@ -656,3 +604,53 @@ class Command(BaseCommand):
         # Keep the service running
         while True:
             time.sleep(1)
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$ApiKey,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$BaseUrl = "http://localhost:8000"
+)
+
+$headers = @{
+    "Authorization" = "Api-Key $ApiKey"
+    "Content-Type" = "application/json"
+}
+
+# Test MQTT publish endpoint
+$body = @{
+    topic = "smartreader/test/control"
+    payload = @{
+        command = "status"
+        command_id = "test-123"
+    }
+} | ConvertTo-Json
+
+Write-Host "Testing MQTT publish endpoint..."
+try {
+    $response = Invoke-WebRequest -Method POST -Uri "$BaseUrl/api/mqtt/publish/" -Headers $headers -Body $body
+    Write-Host "Success! Status code: $($response.StatusCode)"
+    Write-Host "Response: $($response.Content)"
+} catch {
+    Write-Host "Error: $_"
+}
+
+# Test cleanup stale commands endpoint
+Write-Host "`nTesting cleanup stale commands endpoint..."
+try {
+    $response = Invoke-WebRequest -Method POST -Uri "$BaseUrl/api/commands/cleanup-stale/" -Headers $headers
+    Write-Host "Success! Status code: $($response.StatusCode)"
+    Write-Host "Response: $($response.Content)"
+} catch {
+    Write-Host "Error: $_"
+}
+
+# Test get pending commands endpoint
+Write-Host "`nTesting get pending commands endpoint..."
+try {
+    $response = Invoke-WebRequest -Method GET -Uri "$BaseUrl/api/commands/pending/" -Headers $headers
+    Write-Host "Success! Status code: $($response.StatusCode)"
+    Write-Host "Response: $($response.Content)"
+} catch {
+    Write-Host "Error: $_"
+}

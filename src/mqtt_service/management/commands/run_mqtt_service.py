@@ -33,10 +33,7 @@ class Command(BaseCommand):
                 mqtt_manager.client.disconnect()
             except:
                 pass
-            raisefrom django.core.management.base import BaseCommand
-import logging
-import json
-import requests
+            raise
 import time
 from django.conf import settings
 from app.services import send_command_service
