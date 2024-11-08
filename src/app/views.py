@@ -380,6 +380,21 @@ def firmware_update(request, reader_id):
 def api_docs(request):
     return render(request, 'app/api_docs.html')
 
+class PendingCommandsView(APIView):
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            commands = services.get_pending_commands()
+            return Response({'commands': commands})
+        except Exception as e:
+            logger.error(f"Error retrieving pending commands: {str(e)}")
+            return Response(
+                {'error': 'Failed to retrieve pending commands'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 def home(request):
     return redirect('reader_list')
 

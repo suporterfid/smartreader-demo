@@ -563,3 +563,23 @@ def get_reader(reader_id):
 
 def get_firmware(firmware_id):
     return get_object_or_404(Firmware, id=firmware_id)
+
+def get_pending_commands():
+    """Get all pending commands and update their status to PROCESSING"""
+    pending_commands = Command.objects.filter(status='PENDING')
+    command_list = []
+    
+    for command in pending_commands:
+        command_data = {
+            'id': command.id,
+            'command_id': command.command_id,
+            'reader_serial': command.reader.serial_number,
+            'command': command.command,
+            'details': command.details,
+            'date_sent': command.date_sent.isoformat() if command.date_sent else None
+        }
+        command_list.append(command_data)
+        command.status = 'PROCESSING'
+        command.save()
+        
+    return command_list

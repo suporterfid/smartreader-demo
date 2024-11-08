@@ -39,5 +39,6 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
 
     path('api/docs/', views.api_docs, name='api_docs'),
+    path('api/commands/pending/', views.PendingCommandsView.as_view(), name='pending_commands'),
     # Other URL patterns
 ]
