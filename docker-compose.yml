@@ -196,6 +196,7 @@ services:
       - MQTT_BROKER=${MQTT_BROKER}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
     networks:
       - app_network
     restart: unless-stopped
@@ -234,6 +235,7 @@ services:
       - MQTT_BROKER=${MQTT_BROKER}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
     networks:
       - app_network
     restart: unless-stopped
