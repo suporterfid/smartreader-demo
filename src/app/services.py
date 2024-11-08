@@ -57,14 +57,14 @@ def send_command_service(request, reader_id, command_id, command_type, payload=N
                     logger.warning("Invalid JSON stored in command details.")
                     command_payload = {}
         else:
-            if not isinstance(message, (str, bytearray, int, float, type(None))):
+            if not isinstance(command.details, (str, bytearray, int, float, type(None))):
                 try:
                     command_payload = str(command.details)  # It's already a dictionary 
                     command_payload = json.loads(command_payload)
                     logger.info(f'command payload from database: {command.details}')
                 except Exception as e:
-                    logger.error(f"Failed to convert message to string: {e}")
-                return False       
+                    logger.error(f"Failed to convert command details to string: {e}")
+                    return False       
     except ObjectDoesNotExist:
         command = None
     except Exception as e:
