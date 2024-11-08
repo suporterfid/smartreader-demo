@@ -42,9 +42,12 @@ class Command(BaseCommand):
                 }
             })
 
+        # Wait for Dapr sidecar to be ready
+        time.sleep(5)
+        
         try:
             response = requests.post(
-                f"http://{settings.DAPR_SUBSCRIBER_HOST}:{DAPR_HTTP_PORT}/dapr/subscribe",
+                f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
                 json=subscriptions
             )
             if response.status_code == 200:
