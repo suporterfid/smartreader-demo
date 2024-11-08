@@ -12,7 +12,6 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 from datetime import datetime
 
-from app.mqtt_client import get_mqtt_client
 from .models import Command, Reader, TagEvent, DetailedStatusEvent, Alert, AlertLog, ScheduledCommand, Firmware
 
 
@@ -58,8 +57,14 @@ def send_command_service(request, reader_id, command_id, command_type, payload=N
                     logger.warning("Invalid JSON stored in command details.")
                     command_payload = {}
         else:
-            command_payload = command.details  # It's already a dictionary 
-        logger.info(f'command payload from database: {command.details}')
+            if not isinstance(message, (str, bytearray, int, float, type(None))):
+                try:
+                    command_payload = str(command.details)  # It's already a dictionary 
+                    command_payload = json.loads(command_payload)
+                    logger.info(f'command payload from database: {command.details}')
+                except Exception as e:
+                    logger.error(f"Failed to convert message to string: {e}")
+                return False       
     except ObjectDoesNotExist:
         command = None
     except Exception as e:
@@ -89,35 +94,47 @@ def send_command_service(request, reader_id, command_id, command_type, payload=N
         topic = f'smartreader/{reader.serial_number}/control'
 
     # Convert the message to a JSON string with proper formatting
-    message_json = json.dumps(message, indent=4)
+    # message_json = json.dumps(message, indent=4)
+    # message_json = json.dumps(message)
 
     logger.info(f"Sending command '{command_id}' - '{command_type}' to reader '{reader.serial_number}' on topic '{topic}' message: {message}")
    
     # The following block is unnecessary, as `message['payload']` is already a dictionary
     # Therefore, we don't need to sanitize it again
 
-    from .mqtt_client import get_mqtt_client
-    client = get_mqtt_client()
-
-    if not client.is_connected():
-        logger.error("MQTT client is not connected. Attempting to reconnect...")
-        try:
-            mqtt_port = int(settings.MQTT_PORT)
-            mqtt_broker = settings.MQTT_BROKER
-            logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
-            client.connect(mqtt_broker, mqtt_port, 60)
-            logger.info("Reconnected to MQTT broker")
-        except Exception as e:
-            logger.exception(f"Failed to reconnect to MQTT broker: {e}")
-            return False, _("Failed to send command. Please try again.")
-
+    from .mqtt_client import publish_message
     try:
-        result = client.publish(topic, message_json)
-        logger.info(f"Message queued successfully.")
-        return True, _("Command queued successfully.")
+        if publish_message(topic, message):
+            logger.info(f"Message queued successfully.")
+        else:
+            logger.error(f"An exception occurred while publishing the message.")
     except Exception as e:
-        logger.exception(f"An exception occurred while publishing the message: {e}")
+        logger.exception(f"Failed to reconnect to MQTT broker: {e}")
         return False, _("Failed to send command. Please try again.")
+
+
+    # from .mqtt_client import get_mqtt_client
+    # client = get_mqtt_client()
+
+    # if not client.is_connected():
+    #     logger.error("MQTT client is not connected. Attempting to reconnect...")
+    #     try:
+    #         mqtt_port = int(settings.MQTT_PORT)
+    #         mqtt_broker = settings.MQTT_BROKER
+    #         logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
+    #         client.connect(mqtt_broker, mqtt_port, 60)
+    #         logger.info("Reconnected to MQTT broker")
+    #     except Exception as e:
+    #         logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+    #         return False, _("Failed to send command. Please try again.")
+
+    # try:
+    #     result = client.publish(topic, message_json)
+    #     logger.info(f"Message queued successfully.")
+    #     return True, _("Command queued successfully.")
+    # except Exception as e:
+    #     logger.exception(f"An exception occurred while publishing the message: {e}")
+    #     return False, _("Failed to send command. Please try again.")
 
 # Recursive function to remove empty fields
 def remove_empty_fields(d):
@@ -163,20 +180,31 @@ def send_firmware_update_command(reader, firmware):
     }
     topic = f"smartreader/{reader.serial_number}/manage"
     
-    client = get_mqtt_client()
-    if not client.is_connected():
-        logger.error("MQTT client is not connected. Attempting to reconnect...")
-        try:
-            mqtt_port = int(settings.MQTT_PORT)
-            mqtt_broker = settings.MQTT_BROKER
-            logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
-            client.connect(mqtt_broker, mqtt_port, 60)
-            logger.info("Reconnected to MQTT broker")
-        except Exception as e:
-            logger.exception(f"Failed to reconnect to MQTT broker: {e}")
-            return False, _("Failed to send command. Please try again.")
-    result = client.publish(topic, json.dumps(message))
-    return result.rc == client.mqtt.MQTT_ERR_SUCCESS
+    from .mqtt_client import publish_message
+    try:
+        if publish_message(topic, json.dumps(message)):
+            logger.info(f"Message published successfully.")
+            return True
+        else:
+            logger.error(f"An exception occurred while publishing the message.")
+            return False
+    except Exception as e:
+        logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+        return False
+    # client = get_mqtt_client()
+    # if not client.is_connected():
+    #     logger.error("MQTT client is not connected. Attempting to reconnect...")
+    #     try:
+    #         mqtt_port = int(settings.MQTT_PORT)
+    #         mqtt_broker = settings.MQTT_BROKER
+    #         logger.info(f"Connecting to broker at {mqtt_broker}:{mqtt_port}")
+    #         client.connect(mqtt_broker, mqtt_port, 60)
+    #         logger.info("Reconnected to MQTT broker")
+    #     except Exception as e:
+    #         logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+    #         return False, _("Failed to send command. Please try again.")
+    # result = client.publish(topic, json.dumps(message))
+    # return result.rc == client.mqtt.MQTT_ERR_SUCCESS
     
 def send_command(reader, command_id, command_type, payload=None):
     if not command_type:
@@ -209,25 +237,35 @@ def send_command(reader, command_id, command_type, payload=None):
     #     if not isinstance(message_json, str):
     #         message_json = json.dumps(message_json)
 
-    from .mqtt_client import get_mqtt_client
-    client = get_mqtt_client()
-
-    if not client.is_connected():
-        logger.error("MQTT client is not connected. Attempting to reconnect...")
-        try:
-            client.reconnect()
-            logger.info("Reconnected to MQTT broker")
-        except Exception as e:
-            logger.exception(f"Failed to reconnect to MQTT broker: {e}")
-            return
-
+    from .mqtt_client import publish_message
     try:
-        result = client.publish(topic, message_json)
-        logger.info(f"Message published successfully.")
-        return True
+        if publish_message(topic, message_json):
+            logger.info(f"Message published successfully.")
+        else:
+            logger.error(f"An exception occurred while publishing the message.")
     except Exception as e:
-        logger.exception(f"An exception occurred while publishing the message: {e}")
-        return False
+        logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+        return False, _("Failed to send command. Please try again.")
+
+    # from .mqtt_client import get_mqtt_client
+    # client = get_mqtt_client()
+
+    # if not client.is_connected():
+    #     logger.error("MQTT client is not connected. Attempting to reconnect...")
+    #     try:
+    #         client.reconnect()
+    #         logger.info("Reconnected to MQTT broker")
+    #     except Exception as e:
+    #         logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+    #         return
+
+    # try:
+    #     result = client.publish(topic, message_json)
+    #     logger.info(f"Message published successfully.")
+    #     return True
+    # except Exception as e:
+    #     logger.exception(f"An exception occurred while publishing the message: {e}")
+    #     return False
 
 def handle_mode_command(reader, data):
     payload = {

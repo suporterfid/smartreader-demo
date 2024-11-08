@@ -83,7 +83,8 @@ docker-compose exec web python manage.py migrate
 ### 4. Create Superuser
 
 ```bash
-docker-compose exec web python manage.py createsuperuser
+docker-compose exec web python manage.py shell -c "from django.contrib.auth.models import User; User.objects.create_superuser('$superuser', '$email', '$password')"
+docker-compose exec web python manage.py populate_test_data.py
 ```
 
 ### 5. Static Files (Optional for production)

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import os
+import ssl
 import sys
 import dj_database_url 
 from celery.schedules import crontab
@@ -206,6 +207,21 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # MQTT Broker Configuration
 MQTT_PORT = os.environ.get('MQTT_PORT', 1883)
 MQTT_BROKER = os.environ.get('MQTT_BROKER', 'test.mosquitto.org')
+MQTT_MAX_MESSAGE_SIZE = os.environ.get('MQTT_MAX_MESSAGE_SIZE', 268435455)
+MQTT_MAX_RECONNECT_ATTEMPTS = os.environ.get('MQTT_MAX_RECONNECT_ATTEMPTS', 5)
+MQTT_RECONNECT_DELAY = os.environ.get('MQTT_RECONNECT_DELAY', 5)
+MQTT_MAX_RECONNECT_ATTEMPTS = os.environ.get('MQTT_MAX_RECONNECT_ATTEMPTS', 5)
+MQTT_KEEPALIVE = os.environ.get('MQTT_KEEPALIVE', 60)
+MQTT_QOS = os.environ.get('MQTT_QOS', 1)
+MQTT_RETAIN = os.environ.get('MQTT_RETAIN', False)
+MQTT_USE_TLS = os.environ.get('MQTT_USE_TLS', False)
+MQTT_CA_CERTS  = os.environ.get('MQTT_CA_CERTS', '/path/to/ca.crt')
+MQTT_CERTFILE   = os.environ.get('MQTT_CERTFILE ', None)
+MQTT_KEYFILE   = os.environ.get('MQTT_KEYFILE ', None)
+MQTT_VERIFY_HOSTNAME   = os.environ.get('MQTT_VERIFY_HOSTNAME ', None)
+MQTT_TLS_VERSION   = os.environ.get('MQTT_TLS_VERSION ', ssl.PROTOCOL_TLS_CLIENT)
+MQTT_CIPHERS   = os.environ.get('MQTT_CIPHERS ', None)
+
 MQTT_TOPICS = [
     ('smartreader/+/controlResult', 1),
     ('smartreader/+/manageResult', 1),
