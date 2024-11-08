@@ -32,11 +32,9 @@ class Command(BaseCommand):
             })
 
         try:
-            headers = {'X-API-Key': os.environ.get('API_KEY')}
             response = requests.post(
                 f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
-                json=subscriptions,
-                headers=headers
+                json=subscriptions
             )
             if response.status_code == 200:
                 logger.info("Successfully subscribed to MQTT topics")
