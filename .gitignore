@@ -389,3 +389,4 @@ qr_codes/qr_code-3038E511C735B50000000005_rCbDDFr.png
 *.toml
 setup-prod.txt
 *.upgx
+.aider*
