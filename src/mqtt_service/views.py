@@ -15,8 +15,9 @@ class ProcessMQTTMessageView(APIView):
     
     def post(self, request):
         try:
-            topic = request.data.get('topic')
-            payload = request.data.get('payload')
+            # Extract topic and data from Dapr cloud event
+            topic = request.data.get('topic', '')
+            payload = request.data.get('data', {})  # Dapr wraps message in 'data' field
             
             if not topic or not payload:
                 return Response(
