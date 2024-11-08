@@ -404,23 +404,36 @@ class ProcessMQTTMessageView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        topic = request.data.get('topic')
-        payload = request.data.get('payload')
-        
-        if not topic or not payload:
-            return Response(
-                {'error': 'Both topic and payload are required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # This endpoint will be called by Dapr when messages arrive
+        try:
+            # Extract topic from Dapr cloud event
+            topic = request.data.get('topic', '')
+            # Extract payload from Dapr cloud event
+            payload = request.data.get('data', {})
             
-        from mqtt_service.services import process_mqtt_message
-        success = process_mqtt_message(topic, payload)
-        
-        if success:
-            return Response({'status': 'success'})
-        else:
+            if not topic or not payload:
+                return Response(
+                    {'error': 'Both topic and payload are required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            from mqtt_service.services import process_mqtt_message
+            success = process_mqtt_message(topic, payload)
+            
+            if success:
+                # Return 200 to acknowledge message
+                return Response({'status': 'success'})
+            else:
+                # Return 500 to trigger Dapr retry
+                return Response(
+                    {'error': 'Failed to process message'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except Exception as e:
+            logger.error(f"Error processing Dapr event: {str(e)}")
             return Response(
-                {'error': 'Failed to process message'}, 
+                {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -625,3 +638,152 @@ try {
 } catch {
     Write-Host "Error: $_"
 }
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-pubsub
+spec:
+  type: pubsub.mqtt
+  version: v1
+  metadata:
+  - name: url
+    value: "mqtt://mqtt:1883"
+  - name: qos
+    value: 1
+  - name: retain
+    value: "false"
+  - name: cleanSession
+    value: "true"
+from django.core.management.base import BaseCommand
+import logging
+import json
+import requests
+from django.conf import settings
+import time
+
+logger = logging.getLogger(__name__)
+
+class Command(BaseCommand):
+    help = 'Runs the MQTT subscriber service using Dapr'
+
+    def handle(self, *args, **options):
+        from django.core.wsgi import get_wsgi_application
+        application = get_wsgi_application()
+
+        logger.info("Starting MQTT subscriber service...")
+        
+        # Subscribe to MQTT topics via Dapr
+        DAPR_HTTP_PORT = 3503
+        
+        # Subscribe to topics
+        subscription = {
+            "pubsubname": "mqtt-pubsub",
+            "topic": "smartreader/+/controlResult",
+            "route": "/api/mqtt/process/"
+        }
+        
+        try:
+            response = requests.post(
+                f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
+                json=[subscription]
+            )
+            if response.status_code == 200:
+                logger.info("Successfully subscribed to MQTT topics")
+            else:
+                logger.error(f"Failed to subscribe: {response.status_code}")
+                return
+                
+        except Exception as e:
+            logger.error(f"Error subscribing to topics: {e}")
+            return
+
+        # Keep the service running
+        while True:
+            time.sleep(1)
+import time
+from django.conf import settings
+from django.core.management.base import BaseCommand
+import logging
+import requests
+from app.services import send_command_service
+
+logger = logging.getLogger(__name__)
+
+class Command(BaseCommand):
+    help = 'Runs the MQTT publisher service using Dapr'
+
+    def handle(self, *args, **options):
+        from django.core.wsgi import get_wsgi_application
+        application = get_wsgi_application()
+
+        logger.info("Starting MQTT publisher service...")
+        
+        DAPR_HTTP_PORT = 3501
+        DJANGO_API_URL = "http://web:8000"
+        
+        while True:
+            try:
+                # Get pending commands
+                response = requests.get(f"{DJANGO_API_URL}/api/commands/pending/")
+                if response.status_code == 200:
+                    commands = response.json().get('commands', [])
+                    
+                    for command in commands:
+                        try:
+                            # Process command using existing logic
+                            success, message = send_command_service(
+                                None,
+                                command['reader_id'],
+                                command['command_id'],
+                                command['command'],
+                                command['details']
+                            )
+                            
+                            # Publish via Dapr
+                            if success:
+                                # Publish message using Dapr
+                                publish_data = {
+                                    "data": message,
+                                    "pubsubname": "mqtt-pubsub",
+                                    "topic": f"smartreader/{command['reader_serial']}/control"
+                                }
+                                
+                                pub_response = requests.post(
+                                    f"http://localhost:{DAPR_HTTP_PORT}/v1.0/publish",
+                                    json=publish_data
+                                )
+                                
+                                if pub_response.status_code == 200:
+                                    # Update command status
+                                    status_data = {
+                                        "status": "COMPLETED",
+                                        "response": "Command sent successfully"
+                                    }
+                                else:
+                                    status_data = {
+                                        "status": "FAILED",
+                                        "response": f"Failed to publish: {pub_response.status_code}"
+                                    }
+                                    
+                                requests.put(
+                                    f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
+                                    json=status_data
+                                )
+                                
+                        except Exception as e:
+                            logger.error(f"Error processing command {command['command_id']}: {e}")
+                            
+                            # Update command status as failed
+                            status_data = {
+                                "status": "FAILED",
+                                "response": f"Error: {str(e)}"
+                            }
+                            requests.put(
+                                f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
+                                json=status_data
+                            )
+                            
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
+                
+            time.sleep(5)  # Wait before next poll

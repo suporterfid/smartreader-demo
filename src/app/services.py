@@ -102,14 +102,30 @@ def send_command_service(request, reader_id, command_id, command_type, payload=N
     # The following block is unnecessary, as `message['payload']` is already a dictionary
     # Therefore, we don't need to sanitize it again
 
-    from .mqtt_client import publish_message
     try:
-        if publish_message(topic, message):
-            logger.info(f"Message queued successfully.")
+        # Publish via Dapr
+        DAPR_HTTP_PORT = 3501
+        publish_data = {
+            "data": message,
+            "pubsubname": "mqtt-pubsub",
+            "topic": topic
+        }
+        
+        import requests
+        response = requests.post(
+            f"http://localhost:{DAPR_HTTP_PORT}/v1.0/publish",
+            json=publish_data
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Message published successfully via Dapr")
+            return True, _("Command sent successfully.")
         else:
-            logger.error(f"An exception occurred while publishing the message.")
+            logger.error(f"Failed to publish via Dapr: {response.status_code}")
+            return False, _("Failed to send command. Please try again.")
+            
     except Exception as e:
-        logger.exception(f"Failed to reconnect to MQTT broker: {e}")
+        logger.exception(f"Failed to publish via Dapr: {e}")
         return False, _("Failed to send command. Please try again.")
 
 
