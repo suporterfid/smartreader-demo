@@ -10,8 +10,11 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'Runs the MQTT service'
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def handle(self, *args, **options):
+        headers = {'X-API-Key': os.environ.get('API_KEY')}
         self.stdout.write(self.style.SUCCESS('Starting MQTT service...'))
         try:
             mqtt_port = int(settings.MQTT_PORT)

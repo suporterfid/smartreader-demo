@@ -553,8 +553,11 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'Runs the MQTT subscriber service using Dapr'
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def handle(self, *args, **options):
+        headers = {'X-API-Key': os.environ.get('API_KEY')}
         from django.core.wsgi import get_wsgi_application
         application = get_wsgi_application()
 
@@ -644,8 +647,11 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'Runs the MQTT publisher service using Dapr'
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def handle(self, *args, **options):
+        headers = {'X-API-Key': os.environ.get('API_KEY')}
         from django.core.wsgi import get_wsgi_application
         application = get_wsgi_application()
 
