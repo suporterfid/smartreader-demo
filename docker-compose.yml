@@ -214,6 +214,84 @@ services:
       - dapr-mqtt-publisher
     network_mode: "service:dapr-mqtt-publisher"
 
+  dapr-scheduled-commands:
+    build: .
+    command: python manage.py run_scheduled_commands
+    volumes:
+      - ./src:/app
+      - ./components:/components
+    depends_on:
+      - mqtt
+      - rabbitmq
+      - db
+      - redis
+    environment:
+      - APP_PORT=3504
+      - DAPR_HTTP_PORT=3505
+      - APP_ID=scheduled-commands
+      - COMPONENTS_PATH=/components
+      - TZ=UTC
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  dapr-sidecar-scheduled:
+    image: "daprio/daprd:edge"
+    command: ["./daprd",
+     "-app-id", "scheduled-commands",
+     "-app-port", "3504",
+     "-components-path", "/components"
+    ]
+    volumes:
+      - ./components:/components
+    depends_on:
+      - dapr-scheduled-commands
+    network_mode: "service:dapr-scheduled-commands"
+
+  dapr-command-cleanup:
+    build: .
+    command: python manage.py run_command_cleanup
+    volumes:
+      - ./src:/app
+      - ./components:/components
+    depends_on:
+      - mqtt
+      - rabbitmq
+      - db
+      - redis
+    environment:
+      - APP_PORT=3506
+      - DAPR_HTTP_PORT=3507
+      - APP_ID=command-cleanup
+      - COMPONENTS_PATH=/components
+      - TZ=UTC
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_BROKER=${MQTT_BROKER}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  dapr-sidecar-cleanup:
+    image: "daprio/daprd:edge"
+    command: ["./daprd",
+     "-app-id", "command-cleanup",
+     "-app-port", "3506",
+     "-components-path", "/components"
+    ]
+    volumes:
+      - ./components:/components
+    depends_on:
+      - dapr-command-cleanup
+    network_mode: "service:dapr-command-cleanup"
+
   dapr-mqtt-subscriber:
     build: .
     command: python manage.py run_mqtt_subscriber
