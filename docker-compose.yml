@@ -15,7 +15,7 @@ services:
       - rabbitmq
       - db
       - redis
-      - mqtt_service
+      - dapr-mqtt-publisher
     environment:
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
@@ -115,7 +115,7 @@ services:
       - rabbitmq
       - db
       - redis
-      - mqtt_service
+      - dapr-mqtt-publisher
     environment:
       # - TZ=America/Sao_Paulo
       - TZ=UTC
