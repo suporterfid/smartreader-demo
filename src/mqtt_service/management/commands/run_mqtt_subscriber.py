@@ -19,18 +19,23 @@ class Command(BaseCommand):
         # Subscribe to MQTT topics via Dapr
         DAPR_HTTP_PORT = 3503
 
-        # Subscribe to topics
-        subscription = {
-            "pubsubname": "mqtt-pubsub",
-            "topic": "smartreader/+/controlResult",
-            "route": "/api/mqtt/process/"
-        }
+        # Import MQTT topics from settings
+        from dapr_integration import MQTT_TOPICS
+
+        # Create subscription configs for all topics
+        subscriptions = []
+        for topic in MQTT_TOPICS:
+            subscriptions.append({
+                "pubsubname": "mqtt-pubsub",
+                "topic": topic,
+                "route": "/api/mqtt/process/"
+            })
 
         try:
             headers = {'X-API-Key': os.environ.get('API_KEY')}
             response = requests.post(
                 f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
-                json=[subscription],
+                json=subscriptions,
                 headers=headers
             )
             if response.status_code == 200:
