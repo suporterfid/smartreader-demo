@@ -1,6 +1,8 @@
 # mqtt_service/management/commands/run_mqtt_service.py
 import os
 import logging
+from rest_framework.permissions import IsAuthenticated
+from app.authentication import APIKeyAuthentication
 from django.conf import settings
 from django.core.management.base import BaseCommand
 import requests
