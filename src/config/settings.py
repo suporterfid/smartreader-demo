@@ -306,7 +306,12 @@ LOGGING = {
     },
 }
 
-
+DAPR_PUBLISHER_HOST = os.environ.get('DAPR_PUBLISHER_HOST', 'dapr-sidecar-publisher')
+DAPR_SUBSCRIBER_HOST = os.environ.get('DAPR_SUBSCRIBER_HOST', 'dapr-sidecar-subscriber')
+DAPR_HTTP_PORT = ('DAPR_HTTP_PORT', 3500)
+DAPR_GRPC_PORT = ('DAPR_GRPC_PORT', 50001)
+DAPR_PUBSUB_NAME = ('DAPR_PUBSUB_NAME', 'mqtt-pubsub')
+DAPR_STATE_STORE = ('DAPR_STATE_STORE', 'statestore')
 
 # Ensure the logs directory exists
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

@@ -1,0 +1,30 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis:6379
+    - name: redisPassword
+      value: ""  # If your Redis has a password, put it here
+    - name: consumerID
+      value: channel1
+    - name: enableTLS
+      value: "false"
+    - name: processingTimeout
+      value: 60
+    - name: redeliverInterval
+      value: 30s
+    - name: concurrency
+      value: "50" 
+    # Optional: Use this if you want a prefix for your pub/sub keys
+    - name: keyPrefix
+      value: "smartreader:"
+scopes:
+  - mqtt-publisher
+  - mqtt-subscriber
+  - scheduled-commands
+  - command-cleanup

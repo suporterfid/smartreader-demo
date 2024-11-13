@@ -1,0 +1,4 @@
+FROM daprio/daprd:edge
+
+# Install wget for health checks
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*

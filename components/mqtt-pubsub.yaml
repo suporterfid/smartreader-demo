@@ -1,0 +1,26 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-pubsub  # This name must match the "pubsubname" in your subscriber code
+spec:
+  type: pubsub.mqtt
+  version: v1
+  metadata:
+    - name: url
+      value: "mqtt://mqtt:1883"  # Points to your MQTT service defined in docker-compose
+    - name: qos
+      value: "1"
+    - name: retain
+      value: "false"
+    - name: cleanSession
+      value: "true"
+    - name: consumerID
+      value: "mqtt-subscriber"
+    # Optional authentication if your MQTT broker requires it
+    #- name: username
+    #  value: "your_username"
+    #- name: password
+    #  value: "your_password"
+scopes:
+  - mqtt-publisher
+  - mqtt-subscriber

@@ -1,6 +1,7 @@
 # mqtt_service/management/commands/run_mqtt_service.py
 import os
 import logging
+import django
 from rest_framework.permissions import IsAuthenticated
 from app.authentication import APIKeyAuthentication
 from django.conf import settings
@@ -14,6 +15,11 @@ class Command(BaseCommand):
     help = 'Runs the MQTT service'
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
+
+    if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+        django.setup()
+
 
     def handle(self, *args, **options):
         headers = {'X-API-Key': os.environ.get('API_KEY')}
@@ -56,7 +62,7 @@ class Command(BaseCommand):
 
         logger.info("Starting MQTT publisher service...")
         
-        DAPR_HTTP_PORT = 3501
+        DAPR_HTTP_PORT = 3505
         DJANGO_API_URL = "http://web:8000"
         
         while True:
@@ -80,29 +86,34 @@ class Command(BaseCommand):
                             
                             # Publish via Dapr
                             if success:
-                                # Publish message using Dapr
-                                publish_data = {
-                                    "data": message,
-                                    "pubsubname": "mqtt-pubsub",
-                                    "topic": f"smartreader/{command['reader_serial']}/control"
+                                # Update command status
+                                status_data = {
+                                    "status": "COMPLETED",
+                                    "response": "Command sent successfully"
                                 }
+                                # # Publish message using Dapr
+                                # publish_data = {
+                                #     "data": message,
+                                #     "pubsubname": "mqtt-pubsub",
+                                #     "topic": f"smartreader/{command['reader_serial']}/control"
+                                # }
                                 
-                                pub_response = requests.post(
-                                    f"http://localhost:{DAPR_HTTP_PORT}/v1.0/publish",
-                                    json=publish_data
-                                )
+                                # pub_response = requests.post(
+                                #     f"http://{settings.DAPR_PUBLISHER_HOST}:{DAPR_HTTP_PORT}/v1.0/publish",
+                                #     json=publish_data
+                                # )
                                 
-                                if pub_response.status_code == 200:
-                                    # Update command status
-                                    status_data = {
-                                        "status": "COMPLETED",
-                                        "response": "Command sent successfully"
-                                    }
-                                else:
-                                    status_data = {
-                                        "status": "FAILED",
-                                        "response": f"Failed to publish: {pub_response.status_code}"
-                                    }
+                                # if pub_response.status_code == 200:
+                                #     # Update command status
+                                #     status_data = {
+                                #         "status": "COMPLETED",
+                                #         "response": "Command sent successfully"
+                                #     }
+                                # else:
+                                #     status_data = {
+                                #         "status": "FAILED",
+                                #         "response": f"Failed to publish: {pub_response.status_code}"
+                                #     }
                                     
                                 requests.put(
                                     f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
@@ -120,6 +131,7 @@ class Command(BaseCommand):
                             }
                             requests.put(
                                 f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
+                                headers=headers,
                                 json=status_data
                             )
                             
@@ -156,7 +168,7 @@ class Command(BaseCommand):
         
         try:
             response = requests.post(
-                f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
+                f"http://dapr-sidecar-subscriber:{DAPR_HTTP_PORT}/dapr/subscribe",
                 json=[subscription]
             )
             if response.status_code == 200:

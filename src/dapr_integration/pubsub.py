@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class DaprPubSub:
     def __init__(self, pubsub_name="mqtt-pubsub", dapr_port=3500):
         self.pubsub_name = pubsub_name
-        self.dapr_url = f"http://localhost:{dapr_port}/v1.0"
+        self.dapr_url = f"http://dapr-sidecar-publisher:{dapr_port}/v1.0"
 
     def publish(self, topic: str, data: dict) -> bool:
         """Publish a message to a topic via Dapr"""

@@ -81,8 +81,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     environment:
-      RABBITMQ_DEFAULT_USER: user
-      RABBITMQ_DEFAULT_PASS: password
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=password
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -138,42 +138,6 @@ services:
     networks:
       - app_network
     restart: unless-stopped
-  
-  # celery-beat:
-  #   build: .
-  #   # command: celery -A config beat -l debug
-  #   command: sh -c './wait-for-it.sh rabbitmq:5672 -t 120 -- celery -A config beat -l debug'
-  #   volumes:
-  #     - ./src:/app
-  #     #- /etc/localtime:/etc/localtime:ro #Docker running on Linux
-  #     #- /etc/timezone:/etc/timezone:ro   #Docker running on Linux
-  #   working_dir: /app
-  #   depends_on:
-  #     - db
-  #     - rabbitmq
-  #     - redis
-  #     - celery
-  #   environment:
-  #     - TZ=UTC
-  #     - MQTT_PORT=${MQTT_PORT}
-  #     - MQTT_BROKER=${MQTT_BROKER}
-  #     - MQTT_MAX_MESSAGE_SIZE=${MQTT_MAX_MESSAGE_SIZE}
-  #     - MQTT_MAX_RECONNECT_ATTEMPTS=${MQTT_MAX_RECONNECT_ATTEMPTS}
-  #     - MQTT_RECONNECT_DELAY=${MQTT_RECONNECT_DELAY}
-  #     - MQTT_KEEPALIVE=${MQTT_KEEPALIVE}
-  #     - MQTT_USE_TLS=${MQTT_USE_TLS}
-  #     - MQTT_QOS=${MQTT_QOS}
-  #     - MQTT_RETAIN=${MQTT_RETAIN}
-  #     - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-  #     - DATABASE_URL=${DATABASE_URL}
-  #     - CELERY_LOG_LEVEL=DEBUG
-  #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-  #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-  #     - DB_SSL_REQUIRE=${DB_SSL_REQUIRE}
-  #     - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT}  
-  #   networks:
-  #     - app_network
-  #   restart: unless-stopped
 
   dapr-mqtt-publisher:
     build: .
@@ -182,15 +146,21 @@ services:
       - ./src:/app
       - ./components:/components
     depends_on:
-      - mqtt
-      - rabbitmq
-      - db
-      - redis
+      dapr-sidecar-publisher:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
     environment:
       - APP_PORT=3500
       - DAPR_HTTP_PORT=3501
       - APP_ID=mqtt-publisher
       - COMPONENTS_PATH=/components
+      - DAPR_PLACEMENT_HOST=placement
+      - DAPR_PLACEMENT_PORT=50006
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
       - MQTT_BROKER=${MQTT_BROKER}
@@ -203,16 +173,30 @@ services:
 
   dapr-sidecar-publisher:
     image: "daprio/daprd:edge"
-    command: ["./daprd",
-     "-app-id", "mqtt-publisher",
-     "-app-port", "3500",
-     "-components-path", "/components"
+    command: [
+      "./daprd",
+      "-app-id", "mqtt-publisher",
+      "-app-port", "3500",
+      "-dapr-http-port", "3501",
+      "-dapr-grpc-port", "50001",
+      "-components-path", "/components",
+      "-log-level", "debug",
+      "-placement-host-address", "placement:50006"
     ]
     volumes:
       - ./components:/components
     depends_on:
-      - dapr-mqtt-publisher
-    network_mode: "service:dapr-mqtt-publisher"
+      placement:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - app_network
+    restart: unless-stopped
 
   dapr-scheduled-commands:
     build: .
@@ -221,15 +205,21 @@ services:
       - ./src:/app
       - ./components:/components
     depends_on:
-      - mqtt
-      - rabbitmq
-      - db
-      - redis
+      dapr-sidecar-scheduled:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
     environment:
       - APP_PORT=3504
       - DAPR_HTTP_PORT=3505
       - APP_ID=scheduled-commands
       - COMPONENTS_PATH=/components
+      - DAPR_PLACEMENT_HOST=placement
+      - DAPR_PLACEMENT_PORT=50006
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
       - MQTT_BROKER=${MQTT_BROKER}
@@ -242,16 +232,30 @@ services:
 
   dapr-sidecar-scheduled:
     image: "daprio/daprd:edge"
-    command: ["./daprd",
-     "-app-id", "scheduled-commands",
-     "-app-port", "3504",
-     "-components-path", "/components"
+    command: [
+      "./daprd",
+      "-app-id", "scheduled-commands",
+      "-app-port", "3504",
+      "-dapr-http-port", "3505",
+      "-dapr-grpc-port", "50003",
+      "-components-path", "/components",
+      "-log-level", "debug",
+      "-placement-host-address", "placement:50006"
     ]
     volumes:
       - ./components:/components
     depends_on:
-      - dapr-scheduled-commands
-    network_mode: "service:dapr-scheduled-commands"
+      placement:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - app_network
+    restart: unless-stopped
 
   dapr-command-cleanup:
     build: .
@@ -269,6 +273,8 @@ services:
       - DAPR_HTTP_PORT=3507
       - APP_ID=command-cleanup
       - COMPONENTS_PATH=/components
+      - DAPR_PLACEMENT_HOST=placement
+      - DAPR_PLACEMENT_PORT=50006
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
       - MQTT_BROKER=${MQTT_BROKER}
@@ -281,16 +287,30 @@ services:
 
   dapr-sidecar-cleanup:
     image: "daprio/daprd:edge"
-    command: ["./daprd",
-     "-app-id", "command-cleanup",
-     "-app-port", "3506",
-     "-components-path", "/components"
+    command: [
+      "./daprd",
+      "-app-id", "command-cleanup",
+      "-app-port", "3506",
+      "-dapr-http-port", "3507",
+      "-dapr-grpc-port", "50004",
+      "-components-path", "/components",
+      "-log-level", "debug",
+      "-placement-host-address", "placement:50006"
     ]
     volumes:
       - ./components:/components
     depends_on:
-      - dapr-command-cleanup
-    network_mode: "service:dapr-command-cleanup"
+      placement:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - app_network
+    restart: unless-stopped
 
   dapr-mqtt-subscriber:
     build: .
@@ -299,54 +319,66 @@ services:
       - ./src:/app
       - ./components:/components
     depends_on:
-      - mqtt
-      - rabbitmq
-      - db
-      - redis
+      dapr-sidecar-subscriber:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
     environment:
       - APP_PORT=3502
       - DAPR_HTTP_PORT=3503
       - APP_ID=mqtt-subscriber
       - COMPONENTS_PATH=/components
+      - DAPR_PLACEMENT_HOST=placement
+      - DAPR_PLACEMENT_PORT=50006
       - TZ=UTC
       - MQTT_PORT=${MQTT_PORT}
       - MQTT_BROKER=${MQTT_BROKER}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL}
       - API_KEY=${API_KEY}
+    ports:
+      - "3502:3502" 
     networks:
       - app_network
     restart: unless-stopped
 
   dapr-sidecar-subscriber:
     image: "daprio/daprd:edge"
-    command: ["./daprd",
-     "-app-id", "mqtt-subscriber",
-     "-app-port", "3502",
-     "-components-path", "/components"
+    command: [
+      "./daprd",
+      "-app-id", "mqtt-subscriber",
+      "-app-port", "3502",
+      "-dapr-http-port", "3503",
+      "-dapr-grpc-port", "50002",
+      "-components-path", "/components",
+      "-log-level", "debug",
+      "-placement-host-address", "placement:50006"
     ]
     volumes:
       - ./components:/components
     depends_on:
-      - dapr-mqtt-subscriber
-    network_mode: "service:dapr-mqtt-subscriber"
+      placement:
+        condition: service_started
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - app_network
+    restart: unless-stopped
   
-  # flower:
-  #   build: .
-  #   command: celery -A config flower --port=5555
-  #   ports:
-  #     - "5555:5555"
-  #   environment:
-  #     - TZ=UTC
-  #     - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-  #     - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-  #   depends_on:
-  #     - celery
-  #     - redis
-  #   networks:
-  #     - app_network
-  #   restart: unless-stopped
-
+  placement:
+    image: "daprio/dapr:edge"
+    command: ["./placement", "-port", "50006"]
+    networks:
+      - app_network
+  
 networks:
   app_network:
     driver: bridge

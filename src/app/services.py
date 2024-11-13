@@ -113,7 +113,7 @@ def send_command_service(request, reader_id, command_id, command_type, payload=N
         
         import requests
         response = requests.post(
-            f"http://localhost:{DAPR_HTTP_PORT}/v1.0/publish",
+            f"http://{settings.DAPR_PUBLISHER_HOST_}:{DAPR_HTTP_PORT}/v1.0/publish",
             json=publish_data
         )
         

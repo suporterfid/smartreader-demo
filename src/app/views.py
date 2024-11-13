@@ -576,7 +576,7 @@ class Command(BaseCommand):
         
         try:
             response = requests.post(
-                f"http://localhost:{DAPR_HTTP_PORT}/dapr/subscribe",
+                f"http://dapr-sidecar-subscriber:{DAPR_HTTP_PORT}/dapr/subscribe",
                 json=[subscription]
             )
             if response.status_code == 200:
@@ -615,11 +615,12 @@ class Command(BaseCommand):
         
         DAPR_HTTP_PORT = 3501
         DJANGO_API_URL = "http://web:8000"
+        headers = {'X-API-Key': os.environ.get('API_KEY')}
         
         while True:
             try:
                 # Get pending commands
-                response = requests.get(f"{DJANGO_API_URL}/api/commands/pending/")
+                response = requests.get(f"{DJANGO_API_URL}/api/commands/pending/", headers=headers)
                 if response.status_code == 200:
                     commands = response.json().get('commands', [])
                     
@@ -636,33 +637,38 @@ class Command(BaseCommand):
                             
                             # Publish via Dapr
                             if success:
-                                # Publish message using Dapr
-                                publish_data = {
-                                    "data": message,
-                                    "pubsubname": "mqtt-pubsub",
-                                    "topic": f"smartreader/{command['reader_serial']}/control"
-                                }
-                                
-                                pub_response = requests.post(
-                                    f"http://localhost:{DAPR_HTTP_PORT}/v1.0/publish",
-                                    json=publish_data
-                                )
-                                
-                                if pub_response.status_code == 200:
-                                    # Update command status
-                                    status_data = {
+                                status_data = {
                                         "status": "COMPLETED",
                                         "response": "Command sent successfully"
                                     }
-                                else:
-                                    status_data = {
-                                        "status": "FAILED",
-                                        "response": f"Failed to publish: {pub_response.status_code}"
-                                    }
+                                # # Publish message using Dapr
+                                # publish_data = {
+                                #     "data": message,
+                                #     "pubsubname": "mqtt-pubsub",
+                                #     "topic": f"smartreader/{command['reader_serial']}/control"
+                                # }
+                                
+                                # pub_response = requests.post(
+                                #     f"http://{settings.DAPR_PUBLISHER_HOST}:{DAPR_HTTP_PORT}/v1.0/publish",
+                                #     json=publish_data
+                                # )
+                                
+                                # if pub_response.status_code == 200:
+                                #     # Update command status
+                                #     status_data = {
+                                #         "status": "COMPLETED",
+                                #         "response": "Command sent successfully"
+                                #     }
+                                # else:
+                                #     status_data = {
+                                #         "status": "FAILED",
+                                #         "response": f"Failed to publish: {pub_response.status_code}"
+                                #     }
                                     
                                 requests.put(
                                     f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
-                                    json=status_data
+                                    json=status_data,
+                                    headers=headers
                                 )
                                 
                         except Exception as e:
@@ -675,7 +681,8 @@ class Command(BaseCommand):
                             }
                             requests.put(
                                 f"{DJANGO_API_URL}/api/commands/{command['command_id']}/status/",
-                                json=status_data
+                                json=status_data,
+                                headers=headers
                             )
                             
             except Exception as e:
@@ -694,7 +701,8 @@ logger = logging.getLogger(__name__)
 class DaprPubSub:
     def __init__(self, pubsub_name="mqtt-pubsub", dapr_port=3500):
         self.pubsub_name = pubsub_name
-        self.dapr_url = f"http://localhost:{dapr_port}/v1.0"
+        self.dapr_port = dapr_port
+        self.dapr_url = f"http://{settings.DAPR_PUBLISHER_HOST}:{dapr_port}/v1.0"
         
     def publish(self, topic: str, data: dict) -> bool:
         """Publish a message to a topic via Dapr"""
@@ -721,8 +729,8 @@ class DaprPubSub:
                 "topic": topic,
                 "route": route
             }
-            
-            url = f"{self.dapr_url}/subscribe"
+            subscribe_url = f"http://{settings.DAPR_PUBLISHER_HOST}:{self.dapr_port}/v1.0"
+            url = f"{subscribe_url}/subscribe"
             response = requests.post(url, json=[subscription])
             
             if response.status_code == 200:
@@ -748,7 +756,7 @@ logger = logging.getLogger(__name__)
 class DaprState:
     def __init__(self, store_name="statestore", dapr_port=3500):
         self.store_name = store_name
-        self.dapr_url = f"http://localhost:{dapr_port}/v1.0"
+        self.dapr_url = f"http://{settings.DAPR_PUBLISHER_HOST}:{dapr_port}/v1.0"
         
     def save_state(self, key: str, value: Any) -> bool:
         """Save a value to the state store"""

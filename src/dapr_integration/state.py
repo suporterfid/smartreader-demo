@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class DaprState:
     def __init__(self, store_name="statestore", dapr_port=3500):
         self.store_name = store_name
-        self.dapr_url = f"http://localhost:{dapr_port}/v1.0"
+        self.dapr_url = f"http://dapr-sidecar-subscriber:{dapr_port}/v1.0"
 
     def save_state(self, key: str, value: Any) -> bool:
         """Save a value to the state store"""
