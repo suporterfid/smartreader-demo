@@ -1,3 +1,4 @@
+# dapr_integration/config.py
 from django.conf import settings
 
 # Dapr configuration settings

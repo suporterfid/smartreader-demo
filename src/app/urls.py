@@ -3,7 +3,6 @@ from . import views
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
-    path('api/mqtt/process/', views.ProcessMQTTMessageView.as_view(), name='process_mqtt_message'),
     path('', views.home, name='home'),
     path('readers/', views.reader_list, name='reader_list'),
     path('readers/add/', views.reader_create, name='reader_create'),
@@ -43,5 +42,6 @@ urlpatterns = [
     path('api/commands/<str:command_id>/status/', views.CommandStatusUpdateView.as_view(), name='command_status_update'),
     path('api/commands/cleanup-stale/', views.CleanupStaleCommandsView.as_view(), name='cleanup_stale_commands'),
     path('api/mqtt/publish/', views.PublishMQTTMessageView.as_view(), name='publish_mqtt_message'),
+
     # Other URL patterns
 ]

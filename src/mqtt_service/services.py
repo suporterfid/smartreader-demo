@@ -3,8 +3,41 @@ from datetime import datetime
 from django.utils import timezone
 from app.models import Reader, TagEvent, DetailedStatusEvent
 from app.services import update_reader_connection_status, update_reader_last_communication
+from dapr_integration.dapr_publisher import DaprMQTTPublisher
 
 logger = logging.getLogger(__name__)
+
+mqtt_publisher = DaprMQTTPublisher()
+
+def send_command(reader, command_id, command_type, payload=None):
+    if not command_type:
+        logger.error(f"No command type selected for reader {reader.serial_number}")
+        return False
+
+    if payload is None:
+        payload = {}
+
+    message = {
+        'command': command_type,
+        'command_id': command_id,
+        'payload': payload
+    }
+
+    if command_type == 'status-detailed':
+        topic = f'smartreader/{reader.serial_number}/manage'
+    else:
+        topic = f'smartreader/{reader.serial_number}/control'
+
+    logger.info(f"Sending command '{command_type}' to reader '{reader.serial_number}'")
+    
+    success = mqtt_publisher.publish(topic, message)
+    
+    if success:
+        logger.info(f"Command published successfully to {topic}")
+    else:
+        logger.error(f"Failed to publish command to {topic}")
+    
+    return success
 
 def process_mqtt_message(topic: str, payload: dict) -> bool:
     """Process an MQTT message and store it in the database"""

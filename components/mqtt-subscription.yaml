@@ -1,0 +1,49 @@
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: mqtt-subscription-manageresult
+spec:
+  topic: smartreader/+/manageResult
+  routes:
+    default: /api/mqtt/process/
+  pubsubname: mqtt-pubsub
+
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: mqtt-subscription-tagevents
+spec:
+  topic: smartreader/+/tagEvents
+  routes:
+    default: /api/mqtt/process/
+  pubsubname: mqtt-pubsub
+
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: mqtt-subscription-event
+spec:
+  topic: smartreader/+/event
+  routes:
+    default: /api/mqtt/process/
+  pubsubname: mqtt-pubsub
+
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: mqtt-subscription-metrics
+spec:
+  topic: smartreader/+/metrics
+  routes:
+    default: /api/mqtt/process/
+  pubsubname: mqtt-pubsub
+
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: mqtt-subscription-lwt
+spec:
+  topic: smartreader/+/lwt
+  routes:
+    default: /api/mqtt/process/
+  pubsubname: mqtt-pubsub
